@@ -21,6 +21,17 @@ const SERVICES: ServiceConfig[] = [
   { name: 'jarvis-core', port: PORTS.JARVIS_CORE, healthEndpoint: '/health' },
 ];
 
+let sharedInstance: MonitorService | null = null;
+
+/** Register the container-owned instance so route modules can read statuses. */
+export function setMonitorService(instance: MonitorService): void {
+  sharedInstance = instance;
+}
+
+export function getMonitorService(): MonitorService | null {
+  return sharedInstance;
+}
+
 export class MonitorService {
   private eventBus: EventBus;
   private serviceStatuses: Map<string, ServiceStatus> = new Map();
@@ -110,9 +121,15 @@ export class MonitorService {
 
       if (response.ok) {
         const data = await response.json() as HealthCheckResponse;
+        // Services report healthiness with different vocabularies:
+        // core says "ok", the OpenClaw gateway says "live", MC says "healthy"
+        const rawStatus = String(data.status);
+        const healthyValues = ['ok', 'live', 'healthy'];
         const newStatus: ServiceStatus = {
           name: serviceConfig.name,
-          status: data.status === 'ok' ? 'healthy' : data.status,
+          status: healthyValues.includes(rawStatus)
+            ? 'healthy'
+            : rawStatus === 'degraded' ? 'degraded' : 'unhealthy',
           lastCheck: new Date(),
           uptime: data.uptime || 0,
           version: data.version || 'unknown',

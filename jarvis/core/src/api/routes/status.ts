@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { logger } from '../../utils/logger.js';
+import { getMonitorService } from '../../services/monitorService.js';
 
 const router = Router();
 
@@ -26,6 +27,20 @@ router.get('/', (req, res) => {
       uptime: process.uptime(),
       memory: process.memoryUsage(),
     },
+    timestamp: new Date(),
+    requestId: req.headers['x-request-id'] || 'unknown',
+  });
+});
+
+// Monitored service statuses (gateway, mission control, core). The Desktop
+// must read ecosystem health from here — never by fetching other services
+// directly (MESSAGE_ROUTING.md §7).
+router.get('/services', (req, res) => {
+  const monitor = getMonitorService();
+
+  res.json({
+    success: true,
+    data: monitor ? monitor.getAllServiceStatuses() : [],
     timestamp: new Date(),
     requestId: req.headers['x-request-id'] || 'unknown',
   });

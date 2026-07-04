@@ -7,19 +7,38 @@ import { Router } from 'express';
 import { logger } from '../../utils/logger.js';
 import type { Conversation } from '../../../../shared/types/index.js';
 import { ConversationManager } from '../../services/conversation/ConversationManager.js';
+import { getMemoryService } from '../../services/memoryService.js';
 
 const router = Router();
 
-// In-memory conversation store
-const conversations: Conversation[] = [];
+// Conversation history is persisted through the shared MemoryService so it
+// survives Core restarts. Loaded lazily on first access — requests only
+// arrive after index.ts has initialized the memory service.
+const MEMORY_KEY = 'conversation.history';
 const MAX_CONVERSATIONS = 100;
+
+let conversations: Conversation[] | null = null;
+
+function getConversations(): Conversation[] {
+  if (conversations === null) {
+    const stored = getMemoryService().get<Conversation[]>(MEMORY_KEY);
+    conversations = Array.isArray(stored) ? stored : [];
+  }
+  return conversations;
+}
+
+function persistConversations(): void {
+  const memory = getMemoryService();
+  memory.set(MEMORY_KEY, getConversations());
+  void memory.saveMemory();
+}
 
 // Initialize Conversation Manager
 const conversationManager = new ConversationManager();
 
 router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit as string) || 50;
-  const recentConversations = conversations.slice(-limit);
+  const recentConversations = getConversations().slice(-limit);
   
   res.json({
     success: true,
@@ -53,11 +72,12 @@ router.post('/message', (req, res) => {
     content: content.trim(),
     type,
   };
-  conversations.push(userMessage);
-  
+  const history = getConversations();
+  history.push(userMessage);
+
   // Trim conversations if needed
-  if (conversations.length > MAX_CONVERSATIONS) {
-    conversations.shift();
+  if (history.length > MAX_CONVERSATIONS) {
+    history.shift();
   }
   
   logger.info(`User message received: ${content.substring(0, 100)}...`);
@@ -76,12 +96,16 @@ router.post('/message', (req, res) => {
     id: `msg_${Date.now()}_response`,
     timestamp: new Date(),
     role: 'jarvis',
-    content: result.followUpQuestion 
+    content: result.followUpQuestion
       ? `${result.response} ${result.followUpQuestion}`
       : result.response,
     type: 'text',
   };
-  conversations.push(kiarosResponse);
+  history.push(kiarosResponse);
+  if (history.length > MAX_CONVERSATIONS) {
+    history.shift();
+  }
+  persistConversations();
   
   res.json({
     success: true,

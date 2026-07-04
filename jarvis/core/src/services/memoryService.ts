@@ -11,6 +11,20 @@ interface MemoryData {
   [key: string]: unknown;
 }
 
+let sharedInstance: MemoryService | null = null;
+
+/**
+ * Shared MemoryService instance. Route modules and the service container in
+ * index.ts must use the same instance so data written by routes is loaded
+ * and persisted by the service lifecycle (initialize/shutdown).
+ */
+export function getMemoryService(): MemoryService {
+  if (!sharedInstance) {
+    sharedInstance = new MemoryService();
+  }
+  return sharedInstance;
+}
+
 export class MemoryService {
   private dataDir: string;
   private memoryFile: string;

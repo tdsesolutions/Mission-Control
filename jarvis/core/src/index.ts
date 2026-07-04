@@ -10,9 +10,8 @@ import helmet from 'helmet';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { existsSync } from 'fs';
-import { fileURLToPath } from 'url';
 
 import { logger } from './utils/logger.js';
 import { config, port, corsOrigins } from './config/index.js';
@@ -25,16 +24,21 @@ import { projectsRouter } from './api/routes/projects.js';
 import { memoryRouter } from './api/routes/memory.js';
 import { eventsRouter } from './api/routes/events.js';
 import { JarvisStateManager } from './services/stateManager.js';
-import { MemoryService } from './services/memoryService.js';
+import { MemoryService, getMemoryService } from './services/memoryService.js';
 import { MissionControlClient } from './services/missionControlClient.js';
-import { MonitorService } from './services/monitorService.js';
+import { MonitorService, setMonitorService } from './services/monitorService.js';
 import { WebSocketManager } from './services/webSocketManager.js';
 import { EventBus } from './services/eventBus.js';
 
-// Load environment variables
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const envPath = join(__dirname, '../../../.env');
-if (existsSync(envPath)) {
+// Load environment variables. Resolve from the working directory (npm runs
+// scripts with cwd = jarvis/core) instead of __dirname, which points at a
+// different depth in dev (src/) vs the compiled output (dist/core/src/).
+const envCandidates = [
+  join(process.cwd(), '..', '.env'), // jarvis/.env (documented location)
+  join(process.cwd(), '.env'),       // jarvis/core/.env
+];
+const envPath = envCandidates.find((candidate) => existsSync(candidate));
+if (envPath) {
   dotenv.config({ path: envPath });
 } else {
   logger.warn('No .env file found, using environment variables');
@@ -59,9 +63,10 @@ class JarvisCoreService {
     // Initialize services (WebSocketServer created in initialize())
     this.eventBus = new EventBus();
     this.stateManager = new JarvisStateManager(this.eventBus);
-    this.memoryService = new MemoryService();
+    this.memoryService = getMemoryService();
     this.missionControlClient = new MissionControlClient();
     this.monitorService = new MonitorService(this.eventBus);
+    setMonitorService(this.monitorService);
     this.wss = null as any;
     this.wsManager = null as any;
   }

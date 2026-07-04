@@ -1,3 +1,8 @@
+/* @import must precede all other statements or bundlers drop it in
+   production builds. Fonts load from Google Fonts (localhost-only app);
+   bundling fonts locally is an open owner decision (CURRENT_PHASE.md). */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,8 +12,6 @@
    Cinematic AI Operating System Interface
    Version 2.0 - Premium Quality
    ============================================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
   /* Core Palette - Cinematic Blue/Cyan */

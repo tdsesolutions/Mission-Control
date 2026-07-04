@@ -18,41 +18,52 @@ export function ServicePanel() {
   ]);
 
   useEffect(() => {
-    // Check service health periodically
+    // Ecosystem health comes from Kiaros Core's MonitorService only. The
+    // Desktop never fetches Mission Control or the OpenClaw Gateway directly
+    // (MESSAGE_ROUTING.md §7, COMPONENT_OWNERSHIP.md §1).
+    const DISPLAY_NAMES: Record<string, string> = {
+      'openclaw-gateway': 'OpenClaw Gateway',
+      'mission-control': 'Mission Control',
+      'jarvis-core': 'Kiaros Core',
+    };
+    const toDisplayStatus = (status: string): ServiceStatus['status'] =>
+      status === 'healthy' ? 'online' : status === 'unknown' ? 'warning' : 'offline';
+
     const checkServices = async () => {
-      const updated = await Promise.all(
-        services.map(async (service) => {
-          try {
-            const start = Date.now();
-            // Use the appropriate URL for each service
-            let url: string;
-            if (service.port === 3010) {
-              url = `${JARVIS_CORE_URL}/health`;
-            } else if (service.port === 3002) {
-              url = `http://localhost:3002/api/health`;
-            } else {
-              url = `http://localhost:${service.port}/health`;
-            }
-            
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 3000);
-            const response = await fetch(url, {
-              method: 'GET',
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            const latency = Date.now() - start;
+      try {
+        const start = Date.now();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        const response = await fetch(`${JARVIS_CORE_URL}/api/v1/status/services`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const latency = Date.now() - start;
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        const monitored: Array<{ name: string; status: string; port: number }> =
+          Array.isArray(payload?.data) ? payload.data : [];
+
+        setServices((current) =>
+          current.map((service) => {
+            const match = monitored.find((m) => m.port === service.port);
+            if (!match) return { ...service, status: 'warning' as const, latency: undefined };
             return {
               ...service,
-              status: response.ok ? ('online' as const) : ('warning' as const),
-              latency,
+              name: DISPLAY_NAMES[match.name] ?? service.name,
+              status: toDisplayStatus(match.status),
+              latency: service.port === 3010 ? latency : undefined,
             };
-          } catch {
-            return { ...service, status: 'offline' as const, latency: undefined };
-          }
-        })
-      );
-      setServices(updated);
+          })
+        );
+      } catch {
+        // Core unreachable: nothing is knowable from the Desktop
+        setServices((current) =>
+          current.map((service) => ({ ...service, status: 'offline' as const, latency: undefined }))
+        );
+      }
     };
 
     // Check immediately
