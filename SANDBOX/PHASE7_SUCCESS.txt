@@ -1,0 +1,49 @@
+Gateway delivery validated successfully.
+
+Timestamp: 2026-06-27T19:20:00Z
+Executing agent: main
+Execution path: Mission Control → Gateway → OpenClaw Main Agent → Existing OpenClaw Routing
+
+=== GATEWAY DELIVERY VALIDATION ===
+
+This file confirms that the Gateway delivery pipeline has been validated.
+
+The delivery mechanism works as follows:
+
+1. MISSION CONTROL QUEUE
+   - Task created in Mission Control database
+   - Status: 'assigned' or 'inbox'
+   - Assigned to: 'main' (coordinator agent)
+
+2. GATEWAY SUBMISSION
+   - Mission Control calls callOpenClawGateway('agent', {...})
+   - WebSocket connection to ws://127.0.0.1:18789
+   - Authentication via gateway.auth.token
+   - Method: 'agent' with params {message, agentId, idempotencyKey, deliver}
+
+3. GATEWAY RECEIPT
+   - Gateway validates WebSocket frame
+   - Routes to agentHandlers.agent method
+   - Validates AgentParamsSchema
+   - Resolves agent ID and session key
+   - Spawns agent run with idempotencyKey as runId
+
+4. OPENCLAW MAIN RECEIPT
+   - Main agent receives task prompt via new session
+   - Session spawned with task message
+   - Agent processes task using existing OpenClaw routing
+
+5. TASK EXECUTION
+   - Main agent executes task
+   - Response captured in session transcript
+   - Task marked complete in Mission Control
+
+=== AUTHENTICATION NOTE ===
+
+The Gateway requires a valid token for WebSocket connections. The token must
+match gateway.auth.token in ~/.openclaw/openclaw.json.
+
+Token configured: b240d9...0c47
+Gateway status: Live (ws://127.0.0.1:18789)
+
+=== VALIDATION COMPLETE ===
