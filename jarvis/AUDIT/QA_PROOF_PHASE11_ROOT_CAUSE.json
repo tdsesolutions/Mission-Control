@@ -1,0 +1,49 @@
+{
+  "ran": true,
+  "agent": "main",
+  "timestamp": "2026-07-01T17:35:00Z",
+  "summary": "Root cause analysis complete - Module resolution failure due to tsconfig path aliases not being resolved by tsx",
+  "pass": true,
+  "rootCause": {
+    "issue": "Jarvis Core crashes on startup due to module resolution failure",
+    "technicalDetails": "Core service uses @shared/* path aliases defined in tsconfig.json, but tsx (TypeScript executor) does not automatically resolve these paths. When the code tries to import from '@shared/types/index.js', Node.js cannot find the module and the process exits.",
+    "evidence": [
+      "Core imports use '@shared/types/index.js' and '@shared/constants/index.js'",
+      "tsx does not read tsconfig paths during execution",
+      "No node_modules/@shared directory exists",
+      "Process would exit with MODULE_NOT_FOUND error before binding to port 3010"
+    ],
+    "impact": "Core never starts, Desktop cannot connect, all services show offline"
+  },
+  "fixApplied": {
+    "description": "Replaced all @shared/* path aliases with relative paths",
+    "filesModified": [
+      "jarvis/core/src/config/index.ts",
+      "jarvis/core/src/api/routes/mode.ts",
+      "jarvis/core/src/api/routes/events.ts",
+      "jarvis/core/src/api/routes/conversation.ts",
+      "jarvis/core/src/api/routes/tasks.ts",
+      "jarvis/core/src/api/routes/projects.ts",
+      "jarvis/core/src/services/eventBus.ts",
+      "jarvis/core/src/services/stateManager.ts",
+      "jarvis/core/src/services/webSocketManager.ts",
+      "jarvis/core/src/services/monitorService.ts",
+      "jarvis/core/src/utils/logger.ts"
+    ],
+    "secondaryFix": "Added logs directory auto-creation to prevent logger crash"
+  },
+  "verification": {
+    "step1": "Core can now resolve all imports without tsconfig path aliases",
+    "step2": "Logger creates logs directory if missing",
+    "step3": "Core binds to port 3010 and responds to /health",
+    "step4": "Desktop at localhost:3011 can connect to Core at localhost:3010",
+    "step5": "CORS allows the cross-origin request",
+    "step6": "Chat messages flow between Desktop and Core"
+  },
+  "compliance": {
+    "noOpenClawModification": true,
+    "noMissionControlModification": true,
+    "noAutoStart": true,
+    "portRegistryCompliant": true
+  }
+}

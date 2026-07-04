@@ -1,0 +1,19 @@
+# Runtime artifacts — never commit
+logs/
+.pids/
+core/logs/
+core/memory/
+
+# Local environment (contains MISSION_CONTROL_API_KEY)
+.env
+
+# Compiled output must never land next to shared sources (a misconfigured
+# rootDir once emitted here; stale .js can shadow .ts under tsx)
+shared/**/*.js
+shared/**/*.js.map
+shared/**/*.d.ts
+shared/**/*.d.ts.map
+
+# The root .gitignore excludes package-lock.json because Mission Control uses
+# pnpm. The jarvis subprojects use npm, so their lockfiles ARE committed.
+!package-lock.json
