@@ -1,0 +1,37 @@
+{
+  "era": "governance",
+  "phase": 3,
+  "name": "Repository Integrity & Build Stabilization",
+  "date": "2026-07-04",
+  "status": "COMPLETE",
+  "commits": [
+    { "sha": "7f1a974", "type": "feat(jarvis)", "summary": "bring Kiaros system under version control (71 files)" },
+    { "sha": "96a9b3e", "type": "docs", "summary": "build-era phase documentation and audit trail (B2-B11)" },
+    { "sha": "2505a02", "type": "docs", "summary": "governance-era engineering documentation (Phase 2)" }
+  ],
+  "defects_fixed": [
+    "desktop/App.tsx stale StatusBar import (build-breaking)",
+    "desktop/stores/voiceStore.ts ESM-invalid require()",
+    "shared/constants FEATURES.VOICE stale flag (declarative only)",
+    "desktop: 15 pre-existing tsc errors (unused code, literal widening, missing Web Speech ambient types)",
+    "core: 8 pre-existing tsc errors (rootDir misconfiguration incl. in-place emit hazard, SystemEventType union, untyped json)"
+  ],
+  "verification": {
+    "desktop_build": { "command": "npm run build (tsc && vite build)", "result": "PASS", "notes": "1685 modules, voice chunks lazy-split; non-fatal CSS @import ordering warning recorded" },
+    "core_build": { "command": "rm -rf dist && npm run build (tsc)", "result": "PASS", "notes": "emit layout dist/core/src + dist/shared verified; no in-place emit next to shared sources" },
+    "no_mc_source_modified": true,
+    "no_openclaw_modified": true,
+    "no_direct_gateway_path_added": true,
+    "no_services_started": true,
+    "no_secrets_committed": true,
+    "no_push_to_remote": true
+  },
+  "open_items": [
+    "CSS @import ordering warning (cosmetic; external font fetch policy question for owner)",
+    "core persistence TODOs; in-memory conversation/task stores",
+    "unauthenticated Kiaros Core API",
+    "health-check flapping (5s timeout)",
+    "no LLM in conversation pipeline",
+    "Jarvis/Kiaros naming drift"
+  ]
+}
