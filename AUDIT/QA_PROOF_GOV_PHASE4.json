@@ -1,0 +1,58 @@
+{
+  "era": "governance",
+  "phase": 4,
+  "name": "Complete & Formalize the Voice/Conversation Phase (B12)",
+  "date": "2026-07-04",
+  "status": "COMPLETE",
+  "change_class": "C1",
+  "implemented": [
+    "conversation history persisted via shared MemoryService (key conversation.history, cap 100, saved per exchange)",
+    "getMemoryService()/setMonitorService()+getMonitorService() shared-instance accessors",
+    "new endpoint GET /api/v1/status/services relaying MonitorService statuses",
+    "ServicePanel rewired to Core-only health source (removed forbidden Desktop->Gateway and Desktop->MC browser fetches)",
+    "MonitorService status normalization (ok/live/healthy -> healthy); fixes chronic gateway false-negative",
+    "CSS @import moved first (fonts no longer dropped from production build)",
+    "cwd-based .env resolution (works in dev src/ and compiled dist/core/src/ layouts)",
+    "jarvis/scripts/verify-desktop-e2e.mjs durable E2E verification script"
+  ],
+  "verification": {
+    "core_build": "tsc 0 errors",
+    "desktop_build": "tsc + vite 0 errors, no CSS warning",
+    "persistence_across_restart": {
+      "result": "PASS",
+      "detail": "entries timestamped 15:35Z served after process restarts at 16:28Z and ~18:35Z; memory file inspected before/after"
+    },
+    "services_endpoint": "gateway=healthy, jarvis-core=healthy, mission-control=unhealthy (accurate: MC /api/health timing out)",
+    "browser_e2e": {
+      "script": "jarvis/scripts/verify-desktop-e2e.mjs",
+      "result": "7/7 PASS, zero console/page errors",
+      "checks": [
+        "desktop loads",
+        "core connection established (input enabled)",
+        "persisted history hydrated into UI",
+        "kiaros reply received via UI",
+        "voice button renders without crash",
+        "voice support probe",
+        "no page errors"
+      ],
+      "screenshot": "AUDIT/PHASE4_desktop_e2e.png"
+    },
+    "no_mc_source_modified": true,
+    "no_openclaw_modified": true,
+    "no_forbidden_paths_added": true,
+    "forbidden_paths_removed": ["desktop->gateway health fetch", "desktop->mission-control health fetch"]
+  },
+  "runtime_disclosure": [
+    "two stale Core instances on port 3010 (IPv4/IPv6) SIGTERM-stopped; one restarted via npm run dev; PID file corrected",
+    "playwright chromium v1208 downloaded to user cache for E2E"
+  ],
+  "owner_manual_check": "physical microphone/speaker loop (headless browsers have no audio); steps in PHASE4_REPORT.md section 6",
+  "open_items": [
+    "LLM-backed conversation (canned templates today)",
+    "Approval Engine implementation (prerequisite for Kiaros->MC writes)",
+    "StateManager persistence TODOs; tasks/projects in-memory stubs",
+    "Kiaros Core API authentication",
+    "Mission Control /api/health slowness + monitor timeout calibration",
+    "Jarvis/Kiaros naming reconciliation"
+  ]
+}

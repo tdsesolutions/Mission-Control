@@ -130,12 +130,16 @@ first.
 
 ```
 Kiaros MonitorService (every 30s, 5s timeout):
-  GET 18789/health          (OpenClaw Gateway)
+  GET 18789/health          (OpenClaw Gateway; reports status "live")
   GET 3002/api/health       (Mission Control)
   GET 3010/health           (self)
-  → status transitions emit service:healthy / service:unhealthy events
+  → statuses normalized (ok/live/healthy → healthy), transitions emit
+    service:healthy / service:unhealthy events
 
-Kiaros Desktop: GET 3010/health every 5s (connection indicator)
+Kiaros Desktop (Core is its ONLY health source — Phase 4):
+  GET 3010/health                  every 5s (connection indicator)
+  GET 3010/api/v1/status/services  every 5s (ServicePanel; relays
+                                    MonitorService's view of all services)
 ```
 
 Known artifact: the 5s timeout marks Mission Control "unhealthy" during slow

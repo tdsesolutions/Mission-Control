@@ -88,24 +88,30 @@ idle → listening → recognizing → thinking → (response) → speaking → 
 Guards: `isStarting` flag prevents duplicate starts; `onEnd` only resets to
 idle from listening/recognizing/thinking states.
 
-## 4. Known Defects and Stale Flags (documented, NOT yet fixed)
+## 4. Defect History (all resolved)
 
-Per the Phase 1 audit and the standing instruction, these are recorded but
-must not be fixed outside an approved phase:
+Recorded in the Phase 1 audit, fixed under change control:
 
-1. **Desktop build broken:** `App.tsx:9` imports `./components/StatusBar`,
-   which no longer exists (replaced by `Header.tsx` on 2026-07-02). Blocks
-   `tsc && vite build`; dev server behavior at the time of audit is what
-   masked it.
-2. **`voiceStore.processTranscript()`** uses CommonJS `require('./jarvisStore')`
-   in an ESM/browser bundle. Currently dead code (the live path goes through
-   `VoiceButton` → `ConversationPanel` callback), but it will throw if ever
-   invoked.
-3. **`FEATURES.VOICE = false`** in `jarvis/shared/constants/index.ts` — stale;
-   voice is implemented. Phase 11 docs also still describe voice as
-   "deferred".
-4. `ConversationPanel.tsx` was modified the morning of 2026-07-04 — the voice
-   phase is mid-flight; treat the working tree as unstable.
+1. ~~Desktop build broken (stale `StatusBar` import in `App.tsx`)~~ — fixed
+   Governance Phase 3.
+2. ~~`voiceStore.processTranscript()` CommonJS `require()` in ESM bundle~~ —
+   fixed Governance Phase 3 (static import; no circular dependency).
+3. ~~`FEATURES.VOICE = false` stale flag~~ — fixed Governance Phase 3.
+4. ~~B12 voice work unverified/mid-flight~~ — closed Governance Phase 4:
+   full builds pass, browser E2E passes 7/7 (see PHASE4_REPORT.md), and
+   conversation history now persists across Core restarts.
+5. ~~ServicePanel fetched Mission Control and the OpenClaw Gateway directly
+   from the browser~~ (boundary violation, MESSAGE_ROUTING.md §7; also
+   caused permanent CORS console errors) — fixed Governance Phase 4: the
+   Desktop reads ecosystem health from Kiaros Core's
+   `GET /api/v1/status/services` only.
+
+### Persistence (added Governance Phase 4)
+
+Conversation history is persisted through the shared `MemoryService`
+(`jarvis/core/memory/jarvis-memory.json`, key `conversation.history`,
+capped at 100 entries, written after each exchange) and survives Core
+restarts. See STATE_MANAGEMENT.md §2.
 
 ## 5. What Voice Must Never Do
 
@@ -127,7 +133,7 @@ Gap analysis between today and the Article-I goal, for future phase planning:
 |---|---|---|
 | Speech → text | Push-to-talk, single utterance, browser STT | Continuous listening or wake word; better STT if browser quality insufficient |
 | Understanding | Regex intent scoring, canned responses, **no LLM** | LLM-backed conversation in Kiaros Core |
-| Memory | In-memory (lost on restart); JSON MemoryService unused by routes | Persistent conversation + context memory wired into the pipeline |
+| Memory | Conversation history persists via MemoryService (Phase 4); working context still resets | Context memory wired into the pipeline |
 | Text → speech | Browser TTS, configurable voice | Possibly higher-quality local TTS (would justify building port-3013 service) |
 | Acting on speech | Nothing reaches Mission Control | Core → MC task creation, gated by an implemented Approval Engine |
 

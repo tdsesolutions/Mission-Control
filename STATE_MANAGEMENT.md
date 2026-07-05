@@ -24,8 +24,8 @@ project's #1 documented architectural risk.
 | 2 | MC settings | Mission Control | `settings` table (overrides env, e.g. API key) | Durable | IMPLEMENTED |
 | 3 | MC client state | MC UI | Single Zustand store, refreshed via SSE/WS | Ephemeral | IMPLEMENTED |
 | 4 | Kiaros state (mode/status/context) | Kiaros Core | `JarvisStateManager`, in-memory | **None — `loadState`/`saveState` are TODO stubs** | PARTIAL |
-| 5 | Kiaros memory file | Kiaros Core | `MemoryService` → `jarvis/core/memory/jarvis-memory.json` | Durable | IMPLEMENTED but **not wired into StateManager or any route's real data** |
-| 6 | Kiaros conversations | Kiaros Core | In-memory array, cap 100 | Lost on restart | IMPLEMENTED (stub-grade) |
+| 5 | Kiaros memory file | Kiaros Core | `MemoryService` → `jarvis/core/memory/jarvis-memory.json` (shared instance via `getMemoryService()`) | Durable | IMPLEMENTED; carries conversation history since Phase 4; still not wired into StateManager |
+| 6 | Kiaros conversations | Kiaros Core | Loaded/persisted through MemoryService (key `conversation.history`), cap 100, saved after each exchange | **Durable — survives Core restarts (verified Phase 4)** | IMPLEMENTED |
 | 7 | Kiaros "tasks" / "projects" | Kiaros Core | In-memory `Map`s in route modules | Lost on restart | STUB — marked "will integrate with Mission Control" |
 | 8 | Kiaros event history | Kiaros Core | EventBus ring buffer (1,000 events) | Lost on restart | IMPLEMENTED (by design) |
 | 9 | Desktop chat/connection | Kiaros Desktop | `jarvisStore` (Zustand) | Ephemeral (rehydrates from Core on load) | IMPLEMENTED |
@@ -58,11 +58,10 @@ Recorded for future phases; do not fix outside change control:
 
 1. `JarvisStateManager.loadState()/saveState()` are TODOs — mode and
    preferences reset on Core restart (except mode, which Desktop re-syncs).
-2. Conversation history (#6) is lost on Core restart even though
-   `MemoryService` (#5) exists precisely for this kind of data.
-3. `MemoryService` is initialized at startup and exposed via
-   `/api/v1/memory`, but no internal service actually reads or writes through
-   it.
+2. ~~Conversation history lost on Core restart~~ — RESOLVED Phase 4
+   (persisted through MemoryService; restart survival verified).
+3. Tasks/projects route stores (#7) remain in-memory display stubs by
+   design until the Mission Control integration phase.
 
 ## 5. Real-Time State Propagation
 
