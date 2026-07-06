@@ -119,11 +119,15 @@ html, body, #root {
   height: 100%;
   display: grid;
   grid-template-columns: 320px 1fr 320px;
-  grid-template-rows: 80px 1fr 200px;
+  /* Center row hugs the orb (400px, unchanged); the communication
+     interface (footer area) takes ALL remaining vertical space beneath
+     it — it is the primary workspace. minmax(0,·) keeps the inner
+     message history scrolling instead of the window. */
+  grid-template-rows: 80px auto minmax(0, 1fr);
   grid-template-areas:
     "header header header"
     "left-panel center right-panel"
-    "footer footer footer";
+    "left-panel footer right-panel";
   gap: var(--j-panel-gap);
   padding: var(--j-panel-gap);
   z-index: 10;
@@ -146,6 +150,11 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: var(--j-panel-gap);
+  /* Pinned to the exact height the previous grid produced
+     (100vh − padding 32 − header 80 − row gaps 32 − old footer 200),
+     so the side panels render pixel-identical while the communication
+     interface grows beside them. */
+  height: calc(100vh - 344px);
 }
 
 .jarvis-center {
@@ -161,6 +170,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: var(--j-panel-gap);
+  /* Same pinning as the left panel — see comment there. */
+  height: calc(100vh - 344px);
 }
 
 .jarvis-footer {
@@ -168,6 +179,9 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: var(--j-panel-gap);
+  /* Required so the message history scrolls inside the panel rather
+     than growing the grid row (window must never scroll). */
+  min-height: 0;
 }
 
 /* ============================================================================
@@ -1087,7 +1101,14 @@ html, body, #root {
       "center"
       "footer";
   }
-  
+
+  /* Stacked layout sizes itself — the desktop side-panel pinning must
+     not apply here. */
+  .jarvis-left-panel,
+  .jarvis-right-panel {
+    height: auto;
+  }
+
   .jarvis-right-panel {
     display: none;
   }
