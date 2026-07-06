@@ -102,20 +102,31 @@ Core uses relative imports, Desktop's Vite alias may use `@shared`.
 **Current state:** OPERATIONAL, upstream, unmodified. Runs on port 3002 (not
 the 3000 in upstream docs). Detail: MISSION_CONTROL_ARCHITECTURE.md.
 
-## 5. Approval Engine
+## 5. Approval Engine (`jarvis/core/src/services/approval/`)
 
-**Owns (when built)**
-- Classification of every task into levels 0–4 and states AUTOMATIC /
-  APPROVAL_REQUIRED / BLOCKED / REJECTED, per APPROVAL_ENGINE.md,
-  WORKFLOW_RULES.md, TASK_CLASSIFICATION.md.
+**Owns**
+- Classification of requests into the owner's four states — **approved /
+  requires_owner_approval / requires_clarification / rejected** — with B8
+  levels 0–4 as supporting metadata. Rule tables live in `rules.ts` (the
+  only file that defines safety behavior; 40-case vitest suite guards it).
+- The approval audit trail (`core/logs/approval-audit.jsonl`) and
+  approval events on the Kiaros event bus.
+- API: `POST /api/v1/approval/classify`, `GET /api/v1/approval/audit`.
 
-**Must never touch**
-- N/A yet.
+**Must never**
+- Execute work — its only side effects are the audit append and an event.
+- Modify Mission Control or invoke OpenClaw.
+- Consult an LLM or any provider: decisions are **fully deterministic**
+  (same request → same decision; works with zero network, zero providers —
+  owner mandate 2026-07-05).
+- Default to approval: unrecognizable input is `requires_clarification`.
 
-**Current state:** **SPECIFIED ONLY — ZERO CODE.** Do not confuse it with
-Mission Control's unrelated upstream "exec approvals" feature
-(`src/lib/exec-approval-utils.ts`), which gates gateway exec commands and
-shares vocabulary only.
+**Current state:** IMPLEMENTED (Phase 6) as a decision authority.
+**Implemented ≠ wired:** no execution path exists yet; the conversation
+pipeline consults it for action-class requests as information only. Do not
+confuse it with Mission Control's unrelated upstream "exec approvals"
+feature (`src/lib/exec-approval-utils.ts`), which gates gateway exec
+commands and shares vocabulary only.
 
 ## 6. OpenClaw (external: `/opt/homebrew/bin/openclaw`, `~/.openclaw`, port 18789)
 

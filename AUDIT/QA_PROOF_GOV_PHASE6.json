@@ -1,0 +1,51 @@
+{
+  "era": "governance",
+  "phase": 6,
+  "name": "Approval Engine Implementation",
+  "date": "2026-07-05",
+  "status": "COMPLETE",
+  "change_class": "C1 + constitution amendment v1.1 (owner-authorized)",
+  "owner_decisions": {
+    "scope": "Approval Engine",
+    "anthropic": "no dependency anywhere — engine deterministic, no LLM/provider/network in decision path",
+    "history": "archived with backup, then cleared",
+    "deferred": ["mic/speaker manual test", "private backup remote", "MC /api/health slowness"]
+  },
+  "implemented": [
+    "task 0: 54-entry history backup (memory/archive/jarvis-memory-pre-phase6-20260705-203624.json) + clear, verified 0 after restart",
+    "services/approval/types.ts: owner four-state taxonomy + B8 levels as metadata",
+    "services/approval/rules.ts: dangerous patterns, escape signals, protected/sandbox paths, operation->level vocabulary, write-class set",
+    "services/approval/ApprovalEngine.ts: deterministic classifier; side effects = JSONL audit append + event emit ONLY",
+    "ApprovalEngine.test.ts: 40-case vitest suite (first tests in Kiaros codebase); caught 2 rule bugs pre-ship",
+    "routes: POST /api/v1/approval/classify, GET /api/v1/approval/audit",
+    "conversation integration: command intents classified; decision in metadata + LLM context hint (information only)",
+    "tooling: vitest 1.1->4 (Node 25 hang), jarvis/core/vitest.config.ts (stop root-config inheritance)"
+  ],
+  "verification": {
+    "unit_tests": "40/40 PASS",
+    "core_build": "tsc 0 errors",
+    "desktop_build": "tsc + vite 0 errors",
+    "live_api_states": {
+      "approved": "'Show me the project status' -> L0",
+      "requires_owner_approval_L2": "'Update the footer component and commit the changes'",
+      "requires_owner_approval_L3": "'Deploy the site to production'",
+      "rejected_dangerous": "'Delete the repository and start over' -> L4",
+      "rejected_traversal": "targetPaths ['../../etc/passwd']",
+      "requires_clarification": "'do it'"
+    },
+    "audit_trail": "JSONL entries with matched rules readable via GET /audit",
+    "conversation_integration": "command intent -> approval requires_owner_approval L3 in metadata; LLM relayed decision truthfully, declined execution",
+    "e2e": "7/7 PASS (AUDIT/PHASE6_desktop_e2e.png)",
+    "determinism": "identical requests -> identical decisions (test-pinned)",
+    "safe_default": "unrecognized input -> requires_clarification, never approved (test-pinned)",
+    "no_mc_source_modified": true,
+    "no_openclaw_modified": true,
+    "no_execution_capability": true,
+    "works_without_anthropic": true
+  },
+  "open_items": [
+    "execution wiring through the engine: future owner-gated phase",
+    "owner-approval workflow (pending-decision queue with yes/no): not built",
+    "rule vocabulary will grow with usage (rules.ts + test suite = change surface)"
+  ]
+}

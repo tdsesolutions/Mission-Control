@@ -70,24 +70,33 @@ prevent this permanently:
    statuses: **IMPLEMENTED** (code exists and was verified running),
    **PARTIAL** (code exists, incomplete or unverified), **SPECIFIED** (design
    docs only, zero code), **PLANNED** (roadmap only).
-2. As of 2026-07-04, the following are **SPECIFIED, NOT IMPLEMENTED**, and no
-   document may imply otherwise:
-   - The Approval Engine and workflow levels 0–4 (APPROVAL_ENGINE.md,
-     WORKFLOW_RULES.md, TASK_CLASSIFICATION.md)
+2. The following are **SPECIFIED, NOT IMPLEMENTED**, and no document may
+   imply otherwise (updated 2026-07-05):
    - Kiaros Core → Mission Control task/project write integration
    - Memory Service (3012), Voice Service (3013), Computer Control (3014),
      Service Monitor (3015), Notification Service (3016)
    - Launcher scripts `launch-ai-services.sh` / `stop-ai-services.sh` /
      `check-ai-services.sh`
+
+   The **Approval Engine is IMPLEMENTED** (Governance Phase 6, 2026-07-05)
+   as a deterministic decision authority in Kiaros Core
+   (`jarvis/core/src/services/approval/`), classifying requests as
+   approved / rejected / requires_clarification / requires_owner_approval.
+   It never executes work, never modifies Mission Control, and never
+   invokes OpenClaw. **Implemented ≠ wired:** no execution path consults
+   it yet, because no execution path exists.
 3. A phase may only be declared COMPLETE when its validation report shows the
    deliverable actually running (build passing, endpoint responding), not
    merely files existing.
 
 ## Article V — Safety Posture
 
-1. The Approval Engine is the intended safety gate. Until it is implemented,
-   **no autonomous execution path may be wired from Kiaros into Mission
-   Control task creation.** Kiaros may read; Kiaros may not yet write tasks.
+1. The Approval Engine (implemented Phase 6) is the safety gate. **No
+   autonomous execution path may be wired from Kiaros into Mission Control
+   task creation except through the Approval Engine, and only in a future
+   owner-approved phase.** Kiaros may read; Kiaros may not yet write tasks.
+   Any future execution path that bypasses the engine is FORBIDDEN
+   (CHANGE_CONTROL.md class).
 2. Voice audio never leaves the local machine. Recognition and synthesis use
    the browser Web Speech API; only recognized text travels, and only to
    localhost services.
@@ -120,3 +129,4 @@ Amendments to this Constitution require:
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-07-04 | Initial constitution (Phase 2 deliverable) |
+| 1.1 | 2026-07-05 | Art. IV/V updated for the implemented Approval Engine (owner-approved Phase 6): engine is a deterministic decision authority in Kiaros Core; execution wiring remains forbidden outside a future owner-approved phase that routes through it |

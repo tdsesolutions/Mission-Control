@@ -35,7 +35,7 @@ natural-language (eventually voice-first) interface.
                            ▼
 ┌────────────────────────────────────────────────────────────┐
 │ MISSION CONTROL (3002) — task queue, agents, monitoring    │
-│   └─ APPROVAL ENGINE — safety gate  [SPECIFIED, NO CODE]   │
+│   └─ APPROVAL ENGINE — decision gate [IMPLEMENTED Phase 6] │
 └──────────────────────────┬─────────────────────────────────┘
                            ▼
 ┌────────────────────────────────────────────────────────────┐
@@ -59,7 +59,7 @@ Telegram is never a Kiaros control path.
 | Desktop → Core | REST + WebSocket | IMPLEMENTED (REST polling only; Core `/ws` exists but unused by Desktop) |
 | Core conversation | LLM-backed executive reasoning | IMPLEMENTED Phase 5 — model-agnostic `LLMProvider` abstraction (`jarvis/core/src/services/llm/`); providers: `anthropic` (SDK, default model `claude-opus-4-8`) and `openai-compatible` (Ollama/LM Studio/OpenAI/vLLM); selection by config only; rule-based intent detection retained; template responses remain the always-available fallback |
 | Core → Mission Control | Read status + create tasks | PARTIAL — health check only; `MissionControlClient` write methods exist but are never called; Core task/project APIs are in-memory stubs |
-| Approval Engine | Classify every task (levels 0–4) | SPECIFIED only (Phase 8 docs); zero code |
+| Approval Engine | Classify every request | IMPLEMENTED Phase 6 — deterministic decision authority in Kiaros Core (`services/approval/`): approved / requires_owner_approval / requires_clarification / rejected; 40-case test suite; audit trail; consulted by conversation for action-class requests (information only). **No execution path exists or consults it yet** |
 | Mission Control → Gateway → OpenClaw | Dispatch to `main` agent | IMPLEMENTED and mature (upstream code, tested) |
 | Telegram ↔ Claw | Backup channel only | External to this repo; policy documented here |
 
@@ -72,7 +72,7 @@ Authoritative registry: `AI_SERVICE_PORT_REGISTRY.md` (Phase 10).
 | 18789 | OpenClaw Gateway (loopback only) | RUNNING (external, LaunchAgent) |
 | 3002 | Mission Control (`.env PORT=3002`) | OPERATIONAL |
 | 3010 | Kiaros Core (Express + ws) | BUILT (manual start) |
-| 3011 | Kiaros Desktop (Vite/React) | BUILT (currently has build-breaking import) |
+| 3011 | Kiaros Desktop (Vite/React) | OPERATIONAL (build fixed Phase 3) |
 | 3012 | Memory Service | RESERVED, NOT BUILT |
 | 3013 | Voice Service | RESERVED, NOT BUILT (voice was implemented in-browser instead) |
 | 3014 | Computer Control | RESERVED, NOT BUILT |

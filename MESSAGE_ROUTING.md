@@ -97,6 +97,26 @@ Failure handling: retries with attempt tracking; terminal failures broadcast
 `task.escalated` with reason classification (max retries / stale / Aegis
 rejections).
 
+## 3b. Approval Decision Path (Phase 6) — IMPLEMENTED, decision-only
+
+```
+Any caller
+  → POST 3010/api/v1/approval/classify  { intent, operations?, targetPaths? }
+  → ApprovalEngine (DETERMINISTIC: rule tables in services/approval/rules.ts;
+    no LLM, no provider, no network)
+  → decision: approved | requires_owner_approval | requires_clarification | rejected
+    (+ B8 level 0–4, reason, matched rules)
+  → side effects: audit append (core/logs/approval-audit.jsonl) + event-bus
+    notification. NOTHING IS EXECUTED.
+
+Conversation pipeline: command-intent messages are classified automatically;
+the decision rides in response metadata and as an LLM context hint so Kiaros
+speaks accurately about what would need approval. Information only.
+```
+
+**Rule:** any future execution path MUST obtain its decision here first;
+bypassing the engine is a FORBIDDEN change class (Constitution Art. V v1.1).
+
 ## 4. Kiaros → Mission Control Path — PARTIAL / SPECIFIED
 
 | Message | Mechanism | Status |

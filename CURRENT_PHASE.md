@@ -12,9 +12,9 @@ disagrees with this file, this file wins.
 
 | Field | Value |
 |---|---|
-| **Current official phase** | **Phase 5 — LLM-Backed Conversation (Model-Agnostic)** |
-| **Phase 5 status** | ✅ COMPLETE (2026-07-05) — see PHASE5_REPORT.md / PHASE5_AUDIT.md. Kiaros converses via a real LLM (local Ollama today; Anthropic on owner key) |
-| **Next phase** | Phase 6 — awaiting owner approval (proposal below) |
+| **Current official phase** | **Phase 6 — Approval Engine Implementation** |
+| **Phase 6 status** | ✅ COMPLETE (2026-07-05) — see PHASE6_REPORT.md / PHASE6_AUDIT.md. Deterministic decision authority live (4 states, 40/40 tests); Constitution amended to v1.1; template-era history archived |
+| **Next phase** | Phase 7 — awaiting owner approval (proposal below) |
 | **System state** | Frozen for implementation changes between phases; documentation-only work permitted (C0) |
 
 ## Phase Numbering — Two Eras
@@ -37,7 +37,8 @@ To avoid confusion, phases are recorded in two eras:
 | **3 — Repository Integrity & Build Stabilization** | All work committed to git (3 commits, local only); StatusBar + require() defects fixed; FEATURES.VOICE reconciled; 23 additional pre-existing build errors fixed; both packages build clean; in-place shared emit hazard eliminated | ✅ COMPLETE 2026-07-04 |
 | **4 — Complete & Formalize Voice/Conversation (B12)** | Conversation persistence via MemoryService (restart-survival proven); ServicePanel boundary violation removed (Desktop now reads all health from Core's new `/api/v1/status/services`); gateway "live" status normalization; CSS font import + compiled-mode .env path fixed; 7/7 browser E2E + screenshot evidence; B12 formally closed and documented | ✅ COMPLETE 2026-07-04 |
 | **5 — LLM-Backed Conversation (Model-Agnostic)** | `LLMProvider` abstraction (Kiaros never hardcoded to a provider/model — owner mandate); AnthropicProvider (first implementation, `claude-opus-4-8` default) + OpenAICompatibleProvider (Ollama/local, currently live with granite4.1:3b); config-only switching; template fallback (never mute); persona prompt with no-execution honesty constraints; latent dotenv bug fixed; 7/7 E2E with genuine LLM reply | ✅ COMPLETE 2026-07-05 |
-| **6+** | Not yet defined | ⏳ AWAITING OWNER APPROVAL |
+| **6 — Approval Engine Implementation** | Deterministic decision authority in Kiaros Core (`services/approval/`): approved / requires_owner_approval / requires_clarification / rejected (B8 levels as metadata); 40-case test suite (caught 2 rule bugs pre-ship); classify + audit API; JSONL audit trail + events; conversation integration (information only); zero LLM/provider/network in decision path; history archived (54-entry backup) then cleared; Constitution v1.1 (implemented ≠ wired; bypass = FORBIDDEN) | ✅ COMPLETE 2026-07-05 |
+| **7+** | Not yet defined | ⏳ AWAITING OWNER APPROVAL |
 
 ## Build Era (historical record)
 
@@ -81,34 +82,33 @@ To avoid confusion, phases are recorded in two eras:
 - ~~Repository integrity: commit all untracked work~~ ✅ Phase 3
 - ~~LLM-backed conversation in Kiaros Core~~ ✅ Phase 5 (model-agnostic)
 - ~~Conversation memory persistence~~ ✅ Phase 4 (StateManager persistence still TODO)
-- Approval Engine implementation (prerequisite for any Kiaros→MC writes)
-- Kiaros ↔ Mission Control integration (read first, then gated writes)
+- ~~Approval Engine implementation~~ ✅ Phase 6 (decision authority; wiring later)
+- Kiaros ↔ Mission Control integration (read first, then writes gated
+  through the Approval Engine + owner-approval workflow)
 - Core API authentication; streaming replies; Anthropic prompt caching
 - Later eras (from B-roadmap): mobile, computer control, browser automation
 - Explicitly out of scope forever without Constitution amendment:
   Telegram↔Kiaros bridging (Telegram is a Claw backup path only)
 
-## Proposed Phase 6 (for owner decision — not started)
+## Proposed Phase 7 (for owner decision — not started)
 
-**Phase 6 — Approval Engine Implementation (unlock the path to action)**
-Implement the Phase B8 specification (levels 0–4, AUTOMATIC /
-APPROVAL_REQUIRED / BLOCKED states) as real code — the constitutional
-prerequisite for ever letting Kiaros create Mission Control tasks. With the
-conversation brain now live, this is the last gate between "Kiaros can talk"
-and "Kiaros can act (safely)".
+**Phase 7 — Mission Control Read-Only Context**
+Give Kiaros real situational awareness: answer "what's in my queue?", "what
+are the agents doing?", "any failed tasks?" from live Mission Control data.
+Reads only — `MissionControlClient.getTasks()/getAgents()/getProjects()`
+finally get callers; results are summarized into the LLM context. No writes,
+so the Approval Engine is not yet in the execution path (there still is no
+execution path). Needs a Mission Control API key in `jarvis/.env`
+(`MISSION_CONTROL_API_KEY`).
 
-Alternative Phase 6 candidates: MC read-only context (Kiaros answers "what's
-in my queue?" from real data — reads only, no Approval Engine needed), Core
-API authentication, or streaming/voice-latency polish.
+Alternative Phase 7 candidates: owner-approval workflow (a pending-decision
+queue where `requires_owner_approval` items await your explicit yes/no —
+the next brick on the road to safe execution), Core API authentication, or
+streaming/voice polish.
 
 Owner decisions outstanding:
-1. **Anthropic API key** — to put Kiaros on Claude (`claude-opus-4-8`), add
-   `ANTHROPIC_API_KEY` to `jarvis/.env`; until then it runs fully local on
-   Ollama granite4.1:3b.
-2. Clear template-era conversation history? (mildly pollutes LLM context;
-   it's your data.)
-3. Carried over: mic/speaker manual check; MC `/api/health` slowness;
-   private backup remote.
+1. Carried over: mic/speaker manual check; MC `/api/health` slowness;
+   private backup remote; Anthropic key (optional — Kiaros runs local).
 
 ---
 
@@ -120,3 +120,4 @@ Owner decisions outstanding:
 | 2026-07-04 | Phase 3 approved, executed, and completed; defects 1/2/3/7 closed; item 8 added; Phase 4 proposal recorded |
 | 2026-07-04 | Phase 4 approved, executed, and completed; B12 formally closed; conversation persistence + boundary fix landed; Phase 5 proposal (LLM conversation) recorded with owner decisions |
 | 2026-07-05 | Phase 5 approved (owner: model-agnostic mandate, Anthropic first-provider-only, MC context deferred), executed, and completed; Kiaros now LLM-backed (local Ollama live; Anthropic wired, awaiting key); Phase 6 proposal (Approval Engine) recorded |
+| 2026-07-05 | Phase 6 approved (owner: decision-authority-only, no Anthropic dependency, archive history) executed, and completed; Approval Engine live with 40/40 tests; Constitution v1.1; Phase 7 proposal (MC read-only context) recorded |
