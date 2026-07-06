@@ -129,6 +129,7 @@ router.post('/message', async (req, res) => {
         responseSource: result.responseSource,
         provider: result.provider ?? null,
         model: result.model ?? null,
+        approval: result.approval ?? null,
       },
     },
     timestamp: new Date(),

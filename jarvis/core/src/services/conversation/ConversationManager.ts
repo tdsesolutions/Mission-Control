@@ -16,6 +16,8 @@ import { ModeSelector, ConversationMode } from './ModeSelector.js';
 import { ContextManager, ConversationContext } from './ContextManager.js';
 import { ResponseGenerator, ResponseInput, ResponseOutput } from './ResponseGenerator.js';
 import { getLLMProvider, type ChatMessage } from '../llm/index.js';
+import { getApprovalEngine } from '../approval/ApprovalEngine.js';
+import type { ApprovalDecision } from '../approval/types.js';
 
 export interface ConversationRequest {
   content: string;
@@ -39,6 +41,11 @@ export interface ConversationResult {
   /** Provider name and model when responseSource is 'llm'. */
   provider?: string;
   model?: string;
+  /**
+   * Approval Engine decision for action-class requests (Phase 6).
+   * INFORMATION ONLY: nothing in the conversation pipeline executes work.
+   */
+  approval?: ApprovalDecision;
 }
 
 const MAX_HISTORY_MESSAGES = 20;
@@ -90,8 +97,15 @@ export class ConversationManager {
     this.extractContextFromContent(content);
     const context = this.contextManager.getContext();
 
+    // Step 3b: Approval classification for action-class requests (Phase 6).
+    // Decision information only — the conversation pipeline never executes.
+    let approval: ApprovalDecision | undefined;
+    if (detectedIntent === 'command') {
+      approval = getApprovalEngine().classify({ intent: content, source: 'conversation' });
+    }
+
     // Step 4: Generate Response — LLM first, template fallback
-    const llmResult = await this.tryLLM(request, detectedIntent, conversationMode, context);
+    const llmResult = await this.tryLLM(request, detectedIntent, conversationMode, context, approval);
     if (llmResult) {
       return {
         response: llmResult.text,
@@ -101,6 +115,7 @@ export class ConversationManager {
         responseSource: 'llm',
         provider: llmResult.provider,
         model: llmResult.model,
+        approval,
       };
     }
 
@@ -119,6 +134,7 @@ export class ConversationManager {
       conversationMode,
       context: { ...context },
       responseSource: 'template',
+      approval,
     };
   }
 
@@ -131,6 +147,7 @@ export class ConversationManager {
     intent: Intent,
     mode: ConversationMode,
     context: ConversationContext,
+    approval?: ApprovalDecision,
   ): Promise<{ text: string; provider: string; model: string } | null> {
     const provider = getLLMProvider();
     if (!provider) return null;
@@ -139,6 +156,11 @@ export class ConversationManager {
       `Detected intent: ${intent}. Conversation mode: ${mode}.`,
       context.currentTopic ? `Current topic: ${context.currentTopic}.` : '',
       context.currentProject ? `Current project: ${context.currentProject}.` : '',
+      approval
+        ? `Approval Engine decision for this request: ${approval.state} (level ${approval.level}) — ${approval.reason} ` +
+          'Relay this decision truthfully. Remember: you cannot execute anything; ' +
+          'an "approved" decision only means the request WOULD be safe once task execution is wired up.'
+        : '',
     ].filter(Boolean).join(' ');
 
     const system = `${KIAROS_PERSONA}\n\n${contextHints}`;

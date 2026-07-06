@@ -20,6 +20,8 @@ import { tasksRouter } from './api/routes/tasks.js';
 import { projectsRouter } from './api/routes/projects.js';
 import { memoryRouter } from './api/routes/memory.js';
 import { eventsRouter } from './api/routes/events.js';
+import { approvalRouter } from './api/routes/approval.js';
+import { getApprovalEngine } from './services/approval/ApprovalEngine.js';
 import { JarvisStateManager } from './services/stateManager.js';
 import { MemoryService, getMemoryService } from './services/memoryService.js';
 import { MissionControlClient } from './services/missionControlClient.js';
@@ -54,6 +56,7 @@ class JarvisCoreService {
     this.missionControlClient = new MissionControlClient();
     this.monitorService = new MonitorService(this.eventBus);
     setMonitorService(this.monitorService);
+    getApprovalEngine().setEventBus(this.eventBus);
     this.wss = null as any;
     this.wsManager = null as any;
   }
@@ -148,6 +151,7 @@ class JarvisCoreService {
     this.app.use('/api/v1/projects', projectsRouter);
     this.app.use('/api/v1/memory', memoryRouter);
     this.app.use('/api/v1/events', eventsRouter);
+    this.app.use('/api/v1/approval', approvalRouter);
 
     // 404 handler
     this.app.use((req, res) => {
