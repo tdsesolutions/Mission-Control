@@ -50,9 +50,10 @@ function AppContent() {
           <ServicePanel />
         </div>
 
-        {/* Center - Visual Mode */}
+        {/* Center - Visual Mode (mode selector overlays the empty flank) */}
         <div className="jarvis-center">
           {renderCenterContent()}
+          <ModeSelector />
         </div>
 
         {/* Right Panel - Tasks */}
@@ -60,16 +61,9 @@ function AppContent() {
           <TaskPanel />
         </div>
 
-        {/* Footer - Conversation & Mode */}
+        {/* Footer - Communication Interface (full center-column width) */}
         <div className="jarvis-footer">
-          <div className="flex gap-4 h-full">
-            <div className="flex-1">
-              <ConversationPanel />
-            </div>
-            <div className="flex items-end">
-              <ModeSelector />
-            </div>
-          </div>
+          <ConversationPanel />
         </div>
       </div>
     </div>

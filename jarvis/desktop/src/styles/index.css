@@ -728,6 +728,16 @@ html, body, #root {
   backdrop-filter: blur(20px);
 }
 
+/* In the center region the selector stacks vertically on the right flank
+   beside the orb — same glass styling, no footer width consumed. */
+.jarvis-center .mode-selector {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+}
+
 .mode-btn {
   display: flex;
   align-items: center;
