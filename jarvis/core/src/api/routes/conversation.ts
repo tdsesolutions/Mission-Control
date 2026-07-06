@@ -106,9 +106,7 @@ router.post('/message', async (req, res) => {
     id: `msg_${Date.now()}_response`,
     timestamp: new Date(),
     role: 'jarvis',
-    content: result.followUpQuestion
-      ? `${result.response} ${result.followUpQuestion}`
-      : result.response,
+    content: result.response,
     type: 'text',
   };
   history.push(kiarosResponse);

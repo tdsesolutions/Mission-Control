@@ -131,7 +131,12 @@ export class SpeechRecognitionService {
       // Small delay to ensure clean start
       setTimeout(() => {
         if (this.recognition) {
-          this.recognition.start();
+          try {
+            this.recognition.start();
+          } catch {
+            // InvalidStateError when already started — benign; the active
+            // recognition session continues and will fire callbacks.
+          }
         }
       }, 50);
     } catch (error) {

@@ -15,6 +15,7 @@ export function VoiceSettingsPanel() {
     toggleVoice,
     toggleMute,
     toggleAutoSpeak,
+    toggleConversationMode,
     setRate,
     setPitch,
     setVolume,
@@ -75,6 +76,19 @@ export function VoiceSettingsPanel() {
                 disabled={!settings.enabled || settings.muted}
               />
               <span>Auto-speak Responses</span>
+            </label>
+          </div>
+
+          {/* Conversation Mode (hands-free multi-turn) */}
+          <div className="voice-setting-item">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={settings.conversationMode}
+                onChange={toggleConversationMode}
+                disabled={!settings.enabled}
+              />
+              <span>Conversation Mode (auto-listen after replies)</span>
             </label>
           </div>
 

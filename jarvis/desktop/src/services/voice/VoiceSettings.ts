@@ -7,6 +7,8 @@ export interface VoiceSettings {
   enabled: boolean;
   muted: boolean;
   autoSpeak: boolean;
+  /** Hands-free multi-turn: auto-relisten after Kiaros finishes speaking. */
+  conversationMode: boolean;
   rate: number;
   pitch: number;
   volume: number;
@@ -17,6 +19,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   enabled: true,
   muted: false,
   autoSpeak: true,
+  conversationMode: true,
   rate: 1.0,
   pitch: 1.0,
   volume: 1.0,
@@ -74,6 +77,15 @@ export class VoiceSettingsManager {
   setAutoSpeak(autoSpeak: boolean): void {
     this.settings.autoSpeak = autoSpeak;
     this.saveSettings();
+  }
+
+  setConversationMode(conversationMode: boolean): void {
+    this.settings.conversationMode = conversationMode;
+    this.saveSettings();
+  }
+
+  isConversationMode(): boolean {
+    return this.settings.enabled && this.settings.conversationMode;
   }
 
   setRate(rate: number): void {

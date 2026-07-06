@@ -2,10 +2,11 @@
  * Conversation Manager
  * Central brain for Kiaros conversation handling
  *
- * Pipeline (Phase 5):
+ * Pipeline (Phase 5, degraded mode reworked Phase 7):
  * User Message → Intent Detection → Mode Selection → Context Update
+ *   → Approval classification (action-class requests, information only)
  *   → LLM provider (model-agnostic, config-selected)
- *   → on failure/unconfigured: template ResponseGenerator (Kiaros never goes mute)
+ *   → on failure/unconfigured: HONEST degraded reply (never mute, never fake)
  * → Kiaros Response
  */
 
@@ -14,7 +15,6 @@ import { config } from '../../config/index.js';
 import { IntentDetector, Intent } from './IntentDetector.js';
 import { ModeSelector, ConversationMode } from './ModeSelector.js';
 import { ContextManager, ConversationContext } from './ContextManager.js';
-import { ResponseGenerator, ResponseInput, ResponseOutput } from './ResponseGenerator.js';
 import { getLLMProvider, type ChatMessage } from '../llm/index.js';
 import { getApprovalEngine } from '../approval/ApprovalEngine.js';
 import type { ApprovalDecision } from '../approval/types.js';
@@ -32,12 +32,15 @@ export interface ConversationRequest {
 
 export interface ConversationResult {
   response: string;
-  followUpQuestion?: string;
   detectedIntent: Intent;
   conversationMode: ConversationMode;
   context: ConversationContext;
-  /** How the reply was produced — 'llm' or 'template' (fallback). */
-  responseSource: 'llm' | 'template';
+  /**
+   * How the reply was produced: 'llm' (real intelligence) or 'degraded'
+   * (honest status reply when no model is reachable — Kiaros never
+   * pretends to understand; placeholder behavior was retired in Phase 7).
+   */
+  responseSource: 'llm' | 'degraded';
   /** Provider name and model when responseSource is 'llm'. */
   provider?: string;
   model?: string;
@@ -68,13 +71,11 @@ export class ConversationManager {
   private intentDetector: IntentDetector;
   private modeSelector: ModeSelector;
   private contextManager: ContextManager;
-  private responseGenerator: ResponseGenerator;
 
   constructor() {
     this.intentDetector = new IntentDetector();
     this.modeSelector = new ModeSelector();
     this.contextManager = new ContextManager();
-    this.responseGenerator = new ResponseGenerator();
   }
 
   /**
@@ -104,9 +105,9 @@ export class ConversationManager {
       approval = getApprovalEngine().classify({ intent: content, source: 'conversation' });
     }
 
-    // Step 4: Generate Response — LLM first, template fallback
+    // Step 4: Generate Response — LLM, with honest degraded fallback.
     const llmResult = await this.tryLLM(request, detectedIntent, conversationMode, context, approval);
-    if (llmResult) {
+    if (llmResult.ok) {
       return {
         response: llmResult.text,
         detectedIntent,
@@ -119,28 +120,30 @@ export class ConversationManager {
       };
     }
 
-    const responseInput: ResponseInput = {
-      content,
-      intent: detectedIntent,
-      mode: conversationMode,
-      context,
-    };
-    const responseOutput: ResponseOutput = this.responseGenerator.generate(responseInput);
-
+    // Degraded mode: never mute, never pretend. Kiaros states plainly that
+    // its language model is unavailable (Phase 7 retired the canned
+    // template engine — placeholder conversation behavior is forbidden).
     return {
-      response: responseOutput.text,
-      followUpQuestion: responseOutput.followUpQuestion,
+      response: this.degradedReply(content, llmResult.reason),
       detectedIntent,
       conversationMode,
       context: { ...context },
-      responseSource: 'template',
+      responseSource: 'degraded',
       approval,
     };
   }
 
+  private degradedReply(content: string, reason: 'unconfigured' | 'failed'): string {
+    const heard = content.length > 120 ? `${content.slice(0, 117)}...` : content;
+    if (reason === 'unconfigured') {
+      return `I heard you: "${heard}". My language model isn't configured yet, so I can't reply intelligently — set a provider in jarvis/.env (KIAROS_LLM_PROVIDER) and I'll be myself again.`;
+    }
+    return `I heard you: "${heard}". I couldn't reach my language model just now, so I can't give you a proper answer. Give me a moment and try again.`;
+  }
+
   /**
-   * Attempt an LLM reply. Returns null when no provider is configured or the
-   * call fails — the caller falls back to templates so Kiaros always answers.
+   * Attempt an LLM reply. On failure returns the reason so the caller can
+   * produce an HONEST degraded reply — Kiaros always answers, never fakes.
    */
   private async tryLLM(
     request: ConversationRequest,
@@ -148,9 +151,12 @@ export class ConversationManager {
     mode: ConversationMode,
     context: ConversationContext,
     approval?: ApprovalDecision,
-  ): Promise<{ text: string; provider: string; model: string } | null> {
+  ): Promise<
+    | { ok: true; text: string; provider: string; model: string }
+    | { ok: false; reason: 'unconfigured' | 'failed' }
+  > {
     const provider = getLLMProvider();
-    if (!provider) return null;
+    if (!provider) return { ok: false, reason: 'unconfigured' };
 
     const contextHints = [
       `Detected intent: ${intent}. Conversation mode: ${mode}.`,
@@ -173,13 +179,13 @@ export class ConversationManager {
         maxTokens: config.llm.maxTokens,
         timeoutMs: config.llm.timeoutMs,
       });
-      return { text: reply.text, provider: provider.name, model: provider.model };
+      return { ok: true, text: reply.text, provider: provider.name, model: provider.model };
     } catch (error) {
       logger.warn(
-        `LLM provider '${provider.name}' failed, falling back to templates: ` +
+        `LLM provider '${provider.name}' failed, degrading honestly: ` +
         `${error instanceof Error ? error.message : String(error)}`,
       );
-      return null;
+      return { ok: false, reason: 'failed' };
     }
   }
 

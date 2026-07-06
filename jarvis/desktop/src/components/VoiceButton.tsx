@@ -1,68 +1,63 @@
-import React, { useEffect, useCallback } from 'react';
+/**
+ * Voice Button — presentational control for the conversation loop.
+ *
+ * Phase 7: submission does NOT happen here. The voiceStore orchestrator owns
+ * the lifecycle (the old transcript-watching effect caused duplicate
+ * submissions). This button only toggles the loop and reflects state.
+ */
+
+import React, { useEffect } from 'react';
 import { useVoiceStore } from '../stores/voiceStore';
 
 interface VoiceButtonProps {
-  onTranscript?: (transcript: string) => void;
   disabled?: boolean;
 }
 
-export const VoiceButton: React.FC<VoiceButtonProps> = ({ onTranscript, disabled }) => {
+export const VoiceButton: React.FC<VoiceButtonProps> = ({ disabled }) => {
   const {
     voiceState,
+    loopActive,
     isListening,
+    isSpeaking,
     isSupported,
     errorMessage,
     permissionGranted,
-    transcript,
-    startListening,
-    stopListening,
+    toggleConversation,
     initialize,
-    checkPermission,
   } = useVoiceStore();
 
-  // Initialize voice on mount and check permission
   useEffect(() => {
-    initialize();
-    checkPermission();
-  }, [initialize, checkPermission]);
+    initialize(); // idempotent (StrictMode-safe)
+  }, [initialize]);
 
-  // Handle transcript completion
-  useEffect(() => {
-    if (transcript && onTranscript && !isListening) {
-      onTranscript(transcript);
-    }
-  }, [transcript, isListening, onTranscript]);
-
-  const handleClick = useCallback(async () => {
+  const handleClick = () => {
     if (disabled) return;
-    if (isListening) {
-      stopListening();
-    } else {
-      await startListening();
-    }
-  }, [isListening, startListening, stopListening, disabled]);
+    void toggleConversation();
+  };
 
-  // Get button state
   const getButtonState = () => {
     if (!isSupported) {
-      return { text: '🎤', title: 'Voice not supported', className: 'opacity-50 cursor-not-allowed' };
+      return { text: '🎤', title: 'Voice not supported in this browser', className: 'opacity-50 cursor-not-allowed' };
     }
     if (disabled) {
-      return { text: '🎤', title: 'Voice disabled', className: 'opacity-50 cursor-not-allowed' };
+      return { text: '🎤', title: 'Waiting for Kiaros Core connection', className: 'opacity-50 cursor-not-allowed' };
+    }
+    if (isSpeaking) {
+      return { text: '🔊', title: 'Kiaros is speaking — press to interrupt and talk', className: 'animate-pulse bg-[rgba(112,0,255,0.15)] border-[rgba(112,0,255,0.5)]' };
     }
     if (isListening) {
-      return { text: '⏹', title: 'Stop listening', className: 'animate-pulse bg-red-500/20 border-red-500/50' };
+      return { text: '⏹', title: 'Listening — press to stop', className: 'animate-pulse bg-red-500/20 border-red-500/50' };
     }
     if (voiceState === 'thinking') {
-      return { text: '🎤', title: 'Processing...', className: 'opacity-75' };
+      return { text: '…', title: 'Kiaros is thinking — press to cancel the loop', className: 'opacity-75' };
     }
     if (errorMessage) {
-      return { text: '⚠️', title: errorMessage, className: 'bg-yellow-500/20 border-yellow-500/50' };
+      return { text: '⚠️', title: `${errorMessage} — press to try again`, className: 'bg-yellow-500/20 border-yellow-500/50' };
     }
-    return { 
-      text: '🎤', 
-      title: permissionGranted ? 'Click to speak' : 'Enable microphone',
-      className: '' 
+    return {
+      text: '🎤',
+      title: permissionGranted ? 'Press to talk to Kiaros' : 'Press to enable the microphone',
+      className: '',
     };
   };
 
@@ -75,7 +70,7 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({ onTranscript, disabled
       disabled={disabled || !isSupported}
       title={title}
       className={`
-        flex items-center justify-center
+        relative flex items-center justify-center
         w-11 h-11 min-w-[44px] min-h-[44px]
         bg-[rgba(0,240,255,0.1)]
         border border-[rgba(0,240,255,0.2)]
@@ -89,12 +84,12 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({ onTranscript, disabled
         flex-shrink-0
         ${className}
       `}
-      aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+      aria-label={loopActive ? 'Stop conversation' : 'Start voice conversation'}
     >
       {text}
-      
-      {/* Listening indicator */}
-      {isListening && (
+
+      {/* Active-loop indicator */}
+      {loopActive && (
         <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>

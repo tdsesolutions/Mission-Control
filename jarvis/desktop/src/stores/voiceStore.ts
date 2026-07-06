@@ -1,94 +1,368 @@
 /**
- * Voice Store
- * Zustand store for voice state management
+ * Voice Store — the conversational loop orchestrator (Phase 7).
+ *
+ * SINGLE OWNER of the voice lifecycle:
+ *
+ *   ready ──press──▶ listening ──final transcript──▶ thinking
+ *     thinking ──reply──▶ speaking ──done──▶ ready | listening (conversation mode)
+ *   Every error path returns to ready. Always.
+ *
+ * Loop-integrity invariants (owner completion criteria):
+ * - Exactly one submission per final transcript (submission happens inside
+ *   the recognition callback, atomically guarded — never via React effects).
+ * - Exactly one spoken reply per submission (synthesis onDone fires once).
+ * - Never listening while speaking; echo filter drops self-transcripts.
+ * - Bounded auto-relisten (no infinite hot-mic loops).
+ * - No state can stick: recognition errors, synthesis watchdog, and LLM
+ *   timeouts all resolve to ready.
  */
 
 import { create } from 'zustand';
 import { VoiceManager, VoiceState, VoiceSettings, VoiceSettingsManager } from '../services/voice';
 import { useJarvisStore } from './jarvisStore';
 
+const RELISTEN_SETTLE_MS = 400;
+const MAX_SILENT_RELISTENS = 2;
+const ECHO_MIN_LENGTH = 8;
+/** Short transcripts matching recent speech exactly are echo within this window. */
+const ECHO_WINDOW_MS = 7000;
+
 interface VoiceStoreState {
-  // State
+  // Lifecycle state (single source of truth for the loop)
   voiceState: VoiceState;
+  /** True while the hands-free loop is engaged (mic press toggles it). */
+  loopActive: boolean;
   transcript: string;
   isListening: boolean;
   isSpeaking: boolean;
   isSupported: boolean;
   errorMessage: string | null;
   settings: VoiceSettings;
-  permissionGranted: boolean; // NEW: Track permission persistence
-  
+  permissionGranted: boolean;
+
   // Services
   voiceManager: VoiceManager;
   settingsManager: VoiceSettingsManager;
-  
-  // Actions
+
+  // Loop control
+  toggleConversation: () => Promise<void>;
+  stopConversation: () => void;
+
+  // Settings & support
+  initialize: () => void;
+  checkPermission: () => Promise<boolean>;
   requestMicrophonePermission: () => Promise<{ granted: boolean; error: string | null }>;
-  checkPermission: () => Promise<boolean>; // NEW: Check existing permission
-  startListening: () => Promise<void>;
-  stopListening: () => void;
-  stopSpeaking: () => void;
   speak: (text: string) => void;
+  stopSpeaking: () => void;
   toggleVoice: () => void;
   toggleMute: () => void;
   toggleAutoSpeak: () => void;
+  toggleConversationMode: () => void;
   setRate: (rate: number) => void;
   setPitch: (pitch: number) => void;
   setVolume: (volume: number) => void;
   setVoice: (voiceURI: string) => void;
-  initialize: () => void;
-  processTranscript: (transcript: string) => void; // NEW: Handle transcript -> chat
 }
 
-// Lazy initialization - services created on first access
+// Lazy singletons
 let voiceManagerInstance: VoiceManager | null = null;
-let settingsManagerInstance: VoiceSettingsManager | null = null;
-
 function getVoiceManager(): VoiceManager {
-  if (!voiceManagerInstance) {
-    voiceManagerInstance = new VoiceManager();
-  }
+  if (!voiceManagerInstance) voiceManagerInstance = new VoiceManager();
   return voiceManagerInstance;
 }
 
-function getSettingsManager(): VoiceSettingsManager {
-  if (!settingsManagerInstance) {
-    settingsManagerInstance = getVoiceManager().getSettingsManager();
-  }
-  return settingsManagerInstance;
+let initialized = false;
+
+/** Normalize for echo comparison: lowercase, strip punctuation/whitespace. */
+function normalizeForEcho(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ').trim();
 }
 
 export const useVoiceStore = create<VoiceStoreState>((set, get) => {
+  // ---- private loop internals (closure state, not React state) ----
+  let submitting = false;        // exactly-once guard per recognition pass
+  let silentRelistens = 0;       // bounded no-speech re-listen counter
+  let lastSpokenText = '';       // echo filter reference
+  let lastSpokenEndedAt = 0;     // when Kiaros last finished speaking
+  let loopGeneration = 0;        // bumping invalidates stale async continuations
+
+  const manager = () => getVoiceManager();
+  const settingsManager = () => manager().getSettingsManager();
+
+  const toReady = (error?: string) => {
+    set({
+      voiceState: error ? 'error' : 'idle',
+      isListening: false,
+      isSpeaking: false,
+      transcript: '',
+      errorMessage: error ?? null,
+    });
+  };
+
+  const isEcho = (transcript: string): boolean => {
+    if (!lastSpokenText) return false;
+    const heard = normalizeForEcho(transcript);
+    const spoken = normalizeForEcho(lastSpokenText);
+    let result: boolean;
+
+    if (heard.length < ECHO_MIN_LENGTH) {
+      // Short utterances are too ambiguous to drop on containment — but an
+      // EXACT match of what Kiaros just finished saying, heard within a few
+      // seconds of the speech ending, is echo with near-certainty.
+      const withinWindow = Date.now() - lastSpokenEndedAt < ECHO_WINDOW_MS;
+      result = withinWindow && heard.length > 0 && (spoken === heard || spoken.endsWith(` ${heard}`));
+    } else {
+      // Containment, plus a token-overlap fallback: recognition of our own
+      // TTS is imperfect, so near-matches (≥80% of heard words present in
+      // what we just said) also count as echo.
+      result = spoken.includes(heard);
+      if (!result) {
+        const heardTokens = heard.split(' ').filter((t) => t.length > 1);
+        if (heardTokens.length >= 3) {
+          const spokenSet = new Set(spoken.split(' '));
+          const overlap = heardTokens.filter((t) => spokenSet.has(t)).length / heardTokens.length;
+          result = overlap >= 0.8;
+        }
+      }
+    }
+
+    // Diagnostic surface (dev + automated verification)
+    (window as unknown as Record<string, unknown>).__kiarosEchoDebug = { heard, spoken, result };
+    return result;
+  };
+
+  /** One listen → submit → speak cycle. Re-arms itself in conversation mode. */
+  const listenOnce = (generation: number) => {
+    if (generation !== loopGeneration || !get().loopActive) return;
+    if (manager().isSpeaking()) {
+      // Invariant: never listen while speaking.
+      manager().stopSpeaking();
+    }
+
+    submitting = false;
+    // Web Speech fires onerror AND onend for the same cycle — each listen
+    // cycle must conclude exactly once or relisten gets double-armed
+    // (double recognition.start() → InvalidStateError → broken loop).
+    let concluded = false;
+    const concludeOnce = (fn: () => void) => {
+      if (concluded || generation !== loopGeneration) return;
+      concluded = true;
+      fn();
+    };
+
+    set({ voiceState: 'listening', isListening: true, isSpeaking: false, transcript: '', errorMessage: null });
+
+    manager().listen({
+      onResult: (result) => {
+        if (generation !== loopGeneration) return;
+        set({ transcript: result.transcript, voiceState: result.isFinal ? 'thinking' : 'recognizing' });
+        if (result.isFinal) {
+          concludeOnce(() => void handleFinalTranscript(result.transcript, generation));
+        }
+      },
+      onEnd: () => {
+        // Recognition ended without a final transcript (silence/timeout).
+        concludeOnce(() => relistenOrReady(generation));
+      },
+      onError: (error) => {
+        concludeOnce(() => {
+          // 'No speech detected' is a normal part of hands-free flow.
+          if (/no speech/i.test(error)) {
+            relistenOrReady(generation);
+          } else {
+            get().stopConversation();
+            toReady(error);
+          }
+        });
+      },
+    });
+  };
+
+  const relistenOrReady = (generation: number) => {
+    if (generation !== loopGeneration) return;
+    const conversationMode = settingsManager().isConversationMode();
+    if (get().loopActive && conversationMode && silentRelistens < MAX_SILENT_RELISTENS) {
+      silentRelistens++;
+      setTimeout(() => listenOnce(generation), RELISTEN_SETTLE_MS);
+    } else {
+      set({ loopActive: false });
+      toReady();
+    }
+  };
+
+  const handleFinalTranscript = async (rawTranscript: string, generation: number) => {
+    // Exactly-once guard: recognition implementations can emit a final
+    // result AND fire end/error afterwards — only the first path submits.
+    if (submitting || generation !== loopGeneration) return;
+    submitting = true;
+
+    manager().stopListening();
+    const transcript = rawTranscript.trim();
+
+    if (!transcript) {
+      relistenOrReady(generation);
+      return;
+    }
+
+    // Echo protection: Kiaros must never converse with itself.
+    if (isEcho(transcript)) {
+      relistenOrReady(generation);
+      return;
+    }
+
+    silentRelistens = 0;
+    set({ voiceState: 'thinking', isListening: false, transcript });
+
+    const reply = await useJarvisStore.getState().sendMessage(transcript);
+    if (generation !== loopGeneration) return;
+
+    if (reply && settingsManager().shouldAutoSpeak()) {
+      speakReply(reply, generation);
+    } else {
+      afterTurn(generation);
+    }
+  };
+
+  const speakReply = (text: string, generation: number) => {
+    lastSpokenText = text;
+    set({ voiceState: 'speaking', isSpeaking: true, isListening: false });
+
+    manager().speak(text, {
+      onDone: (outcome, detail) => {
+        if (generation !== loopGeneration) return;
+        lastSpokenEndedAt = Date.now();
+        set({ isSpeaking: false });
+        if (outcome === 'error') {
+          console.warn('Speech synthesis issue:', detail);
+        }
+        afterTurn(generation);
+      },
+    });
+  };
+
+  const afterTurn = (generation: number) => {
+    if (generation !== loopGeneration) return;
+    const conversationMode = settingsManager().isConversationMode();
+    if (get().loopActive && conversationMode) {
+      // Settle delay so the tail of TTS audio can't leak into the mic.
+      setTimeout(() => listenOnce(generation), RELISTEN_SETTLE_MS);
+    } else {
+      set({ loopActive: false });
+      toReady();
+    }
+  };
+
   return {
-    // Initial state - defer service initialization
     voiceState: 'idle',
+    loopActive: false,
     transcript: '',
     isListening: false,
     isSpeaking: false,
-    isSupported: false, // Will be set on initialize
+    isSupported: false,
     errorMessage: null,
-    permissionGranted: false, // NEW: Start with no permission
-    settings: { enabled: true, muted: false, autoSpeak: true, rate: 1.0, pitch: 1.0, volume: 1.0, voiceURI: null },
-    
-    // Services - lazy getters
+    permissionGranted: false,
+    settings: { enabled: true, muted: false, autoSpeak: true, conversationMode: true, rate: 1.0, pitch: 1.0, volume: 1.0, voiceURI: null },
+
     get voiceManager() { return getVoiceManager(); },
-    get settingsManager() { return getSettingsManager(); },
-    
-    // Actions
+    get settingsManager() { return getVoiceManager().getSettingsManager(); },
+
+    // ---- Loop control ----
+
+    toggleConversation: async () => {
+      const state = get();
+
+      // Barge-in: pressing the mic while Kiaros speaks stops the speech
+      // and immediately listens — the natural "let me interrupt" gesture.
+      if (state.isSpeaking) {
+        manager().stopSpeaking();
+        loopGeneration++;
+        silentRelistens = 0;
+        set({ loopActive: true, isSpeaking: false });
+        listenOnce(loopGeneration);
+        return;
+      }
+
+      // Press while listening/thinking = stop the loop.
+      if (state.loopActive || state.isListening || state.voiceState === 'thinking') {
+        get().stopConversation();
+        return;
+      }
+
+      // Start: permission first, then listen.
+      let hasPermission = state.permissionGranted || (await get().checkPermission());
+      if (!hasPermission) {
+        const permission = await get().requestMicrophonePermission();
+        if (!permission.granted) {
+          toReady(permission.error ?? 'Microphone permission denied.');
+          return;
+        }
+      }
+
+      const supportError = manager().getSupportError();
+      if (supportError) {
+        toReady(supportError);
+        return;
+      }
+
+      loopGeneration++;
+      silentRelistens = 0;
+      set({ loopActive: true, errorMessage: null });
+      listenOnce(loopGeneration);
+    },
+
+    stopConversation: () => {
+      loopGeneration++; // invalidate all in-flight continuations
+      submitting = false;
+      silentRelistens = 0;
+      manager().stopListening();
+      manager().stopSpeaking();
+      set({ loopActive: false });
+      toReady();
+    },
+
+    // ---- Settings, permissions, support ----
+
+    initialize: () => {
+      if (initialized) {
+        // StrictMode double-mounts effects in dev — init must be idempotent.
+        set({ isSupported: manager().isSupported(), settings: settingsManager().getSettings() });
+        return;
+      }
+      initialized = true;
+      const isSupported = manager().isSupported();
+      const supportError = manager().getSupportError();
+      if (supportError) console.warn('Voice support issue:', supportError);
+      void get().checkPermission();
+      set({ isSupported, settings: settingsManager().getSettings() });
+    },
+
+    checkPermission: async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) return false;
+        const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        const granted = result.state === 'granted';
+        set({ permissionGranted: granted });
+        return granted;
+      } catch {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((track) => track.stop());
+          set({ permissionGranted: true });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+    },
+
     requestMicrophonePermission: async () => {
       try {
-        // Request microphone permission first (this triggers browser prompt)
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices?.getUserMedia) {
           return { granted: false, error: 'Microphone access is not available in this browser.' };
         }
-        
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Stop the stream immediately - we just needed permission
-        stream.getTracks().forEach(track => track.stop());
-        
-        // NEW: Persist permission state
+        stream.getTracks().forEach((track) => track.stop());
         set({ permissionGranted: true });
-        
         return { granted: true, error: null };
       } catch (err: any) {
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -100,185 +374,54 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => {
         return { granted: false, error: `Microphone error: ${err.message}` };
       }
     },
-    
-    // NEW: Check if permission already granted without prompting
-    checkPermission: async () => {
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          return false;
-        }
-        // Try to get permission status without showing prompt
-        const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-        const granted = result.state === 'granted';
-        set({ permissionGranted: granted });
-        return granted;
-      } catch (err) {
-        // Fallback: try getUserMedia silently (will fail if not granted)
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(track => track.stop());
-          set({ permissionGranted: true });
-          return true;
-        } catch {
-          return false;
-        }
-      }
-    },
-    
-    startListening: async () => {
-      const { voiceManager, requestMicrophonePermission, checkPermission, permissionGranted } = get();
-      
-      // NEW: Check if permission already granted first
-      let hasPermission = permissionGranted;
-      if (!hasPermission) {
-        hasPermission = await checkPermission();
-      }
-      
-      // Only request permission if not already granted
-      if (!hasPermission) {
-        const permission = await requestMicrophonePermission();
-        if (!permission.granted) {
-          set({
-            voiceState: 'error',
-            isListening: false,
-            errorMessage: permission.error,
-          });
-          return;
-        }
-      }
-      
-      // Now check speech recognition support
-      const supportError = voiceManager.getSupportError();
-      if (supportError) {
-        set({
-          voiceState: 'error',
-          isListening: false,
-          errorMessage: 'Speech recognition is not supported in this browser.',
-        });
-        return;
-      }
-      
-      voiceManager.startListening({
-        onStateChange: (state) => {
-          set({ 
-            voiceState: state,
-            isListening: state === 'listening' || state === 'recognizing',
-            isSpeaking: state === 'speaking',
-            errorMessage: null,
-          });
-        },
-        onTranscript: (transcript) => {
-          set({ transcript });
-          // Transcript is processed by VoiceButton/ConversationPanel
-          // Do not submit here to avoid duplicate submission
-        },
-        onError: (error) => {
-          console.error('Voice error:', error);
-          set({ 
-            voiceState: 'error',
-            isListening: false,
-            errorMessage: error,
-          });
-        },
-      });
-    },
-    
-    stopListening: () => {
-      const { voiceManager } = get();
-      voiceManager.stopListening();
-      set({ 
-        isListening: false,
-        transcript: '',
-      });
-    },
-    
-    stopSpeaking: () => {
-      const { voiceManager } = get();
-      voiceManager.stopSpeaking();
-      set({ isSpeaking: false });
-    },
-    
-    speak: (text: string) => {
-      const { voiceManager, settingsManager } = get();
-      
-      if (!settingsManager.isEnabled()) return;
-      
-      voiceManager.speak(text);
-    },
-    
-    // NEW: Process transcript through existing chat system
-    processTranscript: (transcript: string) => {
-      // Send the message through the existing chat path
-      const jarvisStore = useJarvisStore.getState();
 
-      if (jarvisStore && typeof jarvisStore.sendMessage === 'function') {
-        // Send through existing text chat path
-        jarvisStore.sendMessage(transcript);
-      }
-    },
-    
-    toggleVoice: () => {
-      const { settingsManager } = get();
-      const current = settingsManager.getSettings().enabled;
-      settingsManager.setEnabled(!current);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    toggleMute: () => {
-      const { settingsManager } = get();
-      const current = settingsManager.getSettings().muted;
-      settingsManager.setMuted(!current);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    toggleAutoSpeak: () => {
-      const { settingsManager } = get();
-      const current = settingsManager.getSettings().autoSpeak;
-      settingsManager.setAutoSpeak(!current);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    setRate: (rate: number) => {
-      const { settingsManager } = get();
-      settingsManager.setRate(rate);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    setPitch: (pitch: number) => {
-      const { settingsManager } = get();
-      settingsManager.setPitch(pitch);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    setVolume: (volume: number) => {
-      const { settingsManager } = get();
-      settingsManager.setVolume(volume);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    setVoice: (voiceURI: string) => {
-      const { settingsManager } = get();
-      settingsManager.setVoiceURI(voiceURI);
-      set({ settings: settingsManager.getSettings() });
-    },
-    
-    initialize: () => {
-      const { voiceManager, settingsManager, checkPermission } = get();
-      // Check support at initialization time
-      const isSupported = voiceManager.isSupported();
-      const supportError = voiceManager.getSupportError();
-      
-      if (supportError) {
-        console.warn('Voice support issue:', supportError);
-      }
-      
-      // NEW: Check permission status on init
-      checkPermission();
-      
-      set({
-        isSupported,
-        settings: settingsManager.getSettings(),
+    speak: (text: string) => {
+      if (!settingsManager().isEnabled()) return;
+      lastSpokenText = text;
+      set({ voiceState: 'speaking', isSpeaking: true });
+      manager().speak(text, {
+        onDone: () => {
+          set({ isSpeaking: false });
+          if (!get().loopActive) toReady();
+        },
       });
     },
+
+    stopSpeaking: () => {
+      manager().stopSpeaking();
+      set({ isSpeaking: false });
+      if (!get().loopActive) toReady();
+    },
+
+    toggleVoice: () => {
+      const current = settingsManager().getSettings().enabled;
+      settingsManager().setEnabled(!current);
+      if (current) get().stopConversation();
+      set({ settings: settingsManager().getSettings() });
+    },
+
+    toggleMute: () => {
+      const current = settingsManager().getSettings().muted;
+      settingsManager().setMuted(!current);
+      if (!current) manager().stopSpeaking();
+      set({ settings: settingsManager().getSettings() });
+    },
+
+    toggleAutoSpeak: () => {
+      const current = settingsManager().getSettings().autoSpeak;
+      settingsManager().setAutoSpeak(!current);
+      set({ settings: settingsManager().getSettings() });
+    },
+
+    toggleConversationMode: () => {
+      const current = settingsManager().getSettings().conversationMode;
+      settingsManager().setConversationMode(!current);
+      set({ settings: settingsManager().getSettings() });
+    },
+
+    setRate: (rate) => { settingsManager().setRate(rate); set({ settings: settingsManager().getSettings() }); },
+    setPitch: (pitch) => { settingsManager().setPitch(pitch); set({ settings: settingsManager().getSettings() }); },
+    setVolume: (volume) => { settingsManager().setVolume(volume); set({ settings: settingsManager().getSettings() }); },
+    setVoice: (voiceURI) => { settingsManager().setVoiceURI(voiceURI); set({ settings: settingsManager().getSettings() }); },
   };
 });

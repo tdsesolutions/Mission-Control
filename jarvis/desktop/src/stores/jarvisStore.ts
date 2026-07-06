@@ -15,7 +15,8 @@ interface JarvisState {
   clearMessages: () => void;
   initialize: () => Promise<void>;
   shutdown: () => void;
-  sendMessage: (content: string) => Promise<void>;
+  /** Resolves with Kiaros's reply text (null on failure) so the voice loop can speak it. */
+  sendMessage: (content: string) => Promise<string | null>;
   checkConnection: () => Promise<boolean>;
 }
 
@@ -111,13 +112,14 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
         } catch {}
       }
 
-      // Set up periodic connection check
-      const interval = setInterval(() => {
+      // Set up periodic connection check (idempotent: StrictMode mounts
+      // effects twice in dev — never leak a second interval)
+      if ((window as any).__jarvisInterval) {
+        clearInterval((window as any).__jarvisInterval);
+      }
+      (window as any).__jarvisInterval = setInterval(() => {
         get().checkConnection();
       }, 5000);
-
-      // Store interval for cleanup
-      (window as any).__jarvisInterval = interval;
       
     } catch (error) {
       console.error('Failed to initialize Jarvis:', error);
@@ -134,44 +136,51 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   
   sendMessage: async (content) => {
     const { addMessage, setStatus, checkConnection } = get();
-    
+
     // Verify connection first
     const isConnected = await checkConnection();
     if (!isConnected) {
-      addMessage('jarvis', 'I am unable to connect to the Kiaros Core service. Please ensure the service is running on port 3010.');
-      return;
+      const offline = 'I am unable to connect to the Kiaros Core service. Please ensure the service is running on port 3010.';
+      addMessage('jarvis', offline);
+      return offline;
     }
-    
+
     // Add user message
     addMessage('user', content);
     setStatus('thinking');
-    
+
+    let reply: string | null = null;
     try {
       const response = await fetch(`${JARVIS_CORE_URL}/api/v1/conversation/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, type: 'text' }),
         // LLM-backed replies can take tens of seconds (Phase 5); the Core
-        // enforces its own provider timeout and falls back to templates.
+        // enforces its own provider timeout and degrades honestly.
         signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 60000); return c.signal; })(),
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data?.jarvisResponse) {
-          addMessage('jarvis', data.data.jarvisResponse.content);
+          reply = String(data.data.jarvisResponse.content);
         } else {
-          addMessage('jarvis', 'I received your message but was unable to formulate a proper response.');
+          reply = 'I received your message but was unable to formulate a proper response.';
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
-        addMessage('jarvis', `I encountered an error processing your request: ${errorData.error?.message || 'Unknown error'}`);
+        reply = `I encountered an error processing your request: ${errorData.error?.message || 'Unknown error'}`;
       }
+      addMessage('jarvis', reply);
     } catch (error) {
       console.error('Failed to send message:', error);
-      addMessage('jarvis', 'I apologize, but I am unable to process your request at the moment. The connection to Kiaros Core was lost.');
+      reply = 'I apologize, but I could not reach Kiaros Core just now. I will keep listening.';
+      addMessage('jarvis', reply);
     } finally {
+      // The lifecycle must always leave 'thinking' — a stuck thinking
+      // state is a stalled conversation.
       setStatus('idle');
     }
+    return reply;
   },
 }));

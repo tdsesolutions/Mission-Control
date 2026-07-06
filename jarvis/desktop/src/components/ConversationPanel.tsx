@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useJarvisStore } from '../stores/jarvisStore';
 import { Send, MessageSquare, AlertCircle } from 'lucide-react';
 
@@ -35,13 +35,6 @@ export function ConversationPanel() {
       second: '2-digit',
     }).format(date);
   };
-
-  // Memoized callback to prevent VoiceButton useEffect from re-triggering on every render
-  const handleVoiceTranscript = useCallback((transcript: string) => {
-    if (transcript.trim() && isConnected && status !== 'thinking') {
-      sendMessage(transcript.trim());
-    }
-  }, [isConnected, status, sendMessage]);
 
   return (
     <div className="conversation-container h-full">
@@ -135,10 +128,7 @@ export function ConversationPanel() {
             🎤
           </button>
         }>
-          <VoiceButton 
-            onTranscript={handleVoiceTranscript}
-            disabled={!isConnected || status === 'thinking'}
-          />
+          <VoiceButton disabled={!isConnected} />
         </Suspense>
         <input
           type="text"
