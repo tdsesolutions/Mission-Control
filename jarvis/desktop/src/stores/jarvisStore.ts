@@ -151,7 +151,9 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, type: 'text' }),
-        signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 10000); return c.signal; })(),
+        // LLM-backed replies can take tens of seconds (Phase 5); the Core
+        // enforces its own provider timeout and falls back to templates.
+        signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 60000); return c.signal; })(),
       });
       
       if (response.ok) {

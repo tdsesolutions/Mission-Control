@@ -48,7 +48,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.post('/message', (req, res) => {
+router.post('/message', async (req, res) => {
   const { content, type = 'text' } = req.body;
   
   if (!content || typeof content !== 'string') {
@@ -81,15 +81,25 @@ router.post('/message', (req, res) => {
   }
   
   logger.info(`User message received: ${content.substring(0, 100)}...`);
-  
-  // Process through Conversation Manager
-  const result = conversationManager.processMessage({
+
+  // Process through the Conversation Manager (LLM provider with template
+  // fallback — see services/llm). History includes the just-stored user
+  // message, so it arrives as the final turn.
+  const result = await conversationManager.processMessage({
     content: content.trim(),
     userId: 'teddie',
     sessionId: 'default_session',
+    history: history.flatMap((entry) =>
+      entry.role === 'user' || entry.role === 'jarvis'
+        ? [{ role: entry.role, content: entry.content }]
+        : [],
+    ),
   });
-  
-  logger.info(`Intent detected: ${result.detectedIntent}, Mode: ${result.conversationMode}`);
+
+  logger.info(
+    `Intent: ${result.detectedIntent}, Mode: ${result.conversationMode}, ` +
+    `Source: ${result.responseSource}${result.provider ? ` (${result.provider}/${result.model})` : ''}`,
+  );
   
   // Generate Kiaros response
   const kiarosResponse: Conversation = {
@@ -116,6 +126,9 @@ router.post('/message', (req, res) => {
         intent: result.detectedIntent,
         mode: result.conversationMode,
         context: result.context,
+        responseSource: result.responseSource,
+        provider: result.provider ?? null,
+        model: result.model ?? null,
       },
     },
     timestamp: new Date(),

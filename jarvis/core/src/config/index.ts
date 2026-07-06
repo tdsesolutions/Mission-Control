@@ -2,7 +2,23 @@
  * Jarvis Core Configuration
  */
 
+import dotenv from 'dotenv';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import { JarvisConfig } from '../../../shared/types/index.js';
+
+// Load .env HERE, not in index.ts: ES module imports are hoisted, so this
+// module executes before index.ts's body. Loading anywhere later means every
+// process.env read below happens before the file is parsed (latent bug found
+// in Phase 5). Resolved from cwd — npm runs scripts with cwd = jarvis/core.
+const envCandidates = [
+  join(process.cwd(), '..', '.env'), // jarvis/.env (documented location)
+  join(process.cwd(), '.env'),       // jarvis/core/.env
+];
+const envPath = envCandidates.find((candidate) => existsSync(candidate));
+if (envPath) {
+  dotenv.config({ path: envPath });
+}
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -32,6 +48,24 @@ export const config: JarvisConfig = {
     waveMode: process.env.FEATURE_WAVE_MODE !== 'false',
     hudMode: process.env.FEATURE_HUD_MODE !== 'false',
     ambientMode: process.env.FEATURE_AMBIENT_MODE !== 'false',
+  },
+
+  // Conversation intelligence. Provider selection is configuration only —
+  // Kiaros is never hardcoded to a provider or model (Phase 5 mandate).
+  llm: {
+    provider: (process.env.KIAROS_LLM_PROVIDER || 'auto') as
+      'auto' | 'anthropic' | 'openai-compatible' | 'none',
+    model: process.env.KIAROS_LLM_MODEL || '',
+    maxTokens: parseInt(process.env.KIAROS_LLM_MAX_TOKENS || '1024', 10),
+    timeoutMs: parseInt(process.env.KIAROS_LLM_TIMEOUT_MS || '30000', 10),
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+    },
+    openaiCompat: {
+      baseUrl: process.env.OPENAI_COMPAT_BASE_URL || '',
+      apiKey: process.env.OPENAI_COMPAT_API_KEY || '',
+      model: process.env.OPENAI_COMPAT_MODEL || '',
+    },
   },
 };
 

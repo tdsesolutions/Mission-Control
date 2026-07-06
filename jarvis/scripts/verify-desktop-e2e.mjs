@@ -5,7 +5,8 @@
 import { chromium } from '../../node_modules/@playwright/test/index.mjs';
 
 const DESKTOP_URL = 'http://localhost:3011';
-const SCREENSHOT = 'AUDIT/PHASE4_desktop_e2e.png'; // relative to repo root
+// Relative to repo root; override so phase evidence files are never clobbered
+const SCREENSHOT = process.env.E2E_SCREENSHOT || 'AUDIT/desktop_e2e_latest.png';
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok, detail });
@@ -37,17 +38,23 @@ try {
   check('persisted history hydrated into UI', preCount >= 4, `${preCount} messages rendered`);
 
   // Send a message through the real UI path
-  await input.fill('phase 4 desktop e2e message');
+  const messagesBefore = await page.locator('.message.jarvis').count();
+  await input.fill('Reply with one short sentence: e2e check message');
   await input.press('Enter');
-  const reply = page.locator('.message.jarvis').last();
+  // Wait for a real reply, not the "Processing..." thinking indicator (which
+  // shares the .message.jarvis class). LLM replies can take tens of seconds.
   await page.waitForFunction(
-    (before) => document.querySelectorAll('.message.jarvis').length > before,
-    await page.locator('.message.jarvis').count() - 1,
-    { timeout: 15000 }
+    (before) => {
+      const replies = document.querySelectorAll('.message.jarvis');
+      if (replies.length <= before) return false;
+      const lastText = replies[replies.length - 1].textContent || '';
+      return !lastText.includes('Processing') && lastText.trim().length > 10;
+    },
+    messagesBefore,
+    { timeout: 60000 }
   );
-  await page.waitForTimeout(800);
-  const replyText = await reply.textContent();
-  check('kiaros reply received via UI', !!replyText && replyText.trim().length > 10, (replyText || '').slice(0, 80).replace(/\s+/g, ' '));
+  const replyText = await page.locator('.message.jarvis').last().textContent();
+  check('kiaros reply received via UI', !!replyText && replyText.trim().length > 10, (replyText || '').slice(0, 110).replace(/\s+/g, ' '));
 
   // Voice components: lazy-loaded; in headless Chromium SpeechRecognition is
   // unavailable — the button must render (or fall back) without crashing chat.

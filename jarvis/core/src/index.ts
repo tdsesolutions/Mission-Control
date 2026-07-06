@@ -9,9 +9,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import dotenv from 'dotenv';
-import { join } from 'path';
-import { existsSync } from 'fs';
 
 import { logger } from './utils/logger.js';
 import { config, port, corsOrigins } from './config/index.js';
@@ -30,19 +27,9 @@ import { MonitorService, setMonitorService } from './services/monitorService.js'
 import { WebSocketManager } from './services/webSocketManager.js';
 import { EventBus } from './services/eventBus.js';
 
-// Load environment variables. Resolve from the working directory (npm runs
-// scripts with cwd = jarvis/core) instead of __dirname, which points at a
-// different depth in dev (src/) vs the compiled output (dist/core/src/).
-const envCandidates = [
-  join(process.cwd(), '..', '.env'), // jarvis/.env (documented location)
-  join(process.cwd(), '.env'),       // jarvis/core/.env
-];
-const envPath = envCandidates.find((candidate) => existsSync(candidate));
-if (envPath) {
-  dotenv.config({ path: envPath });
-} else {
-  logger.warn('No .env file found, using environment variables');
-}
+// Environment variables are loaded by config/index.ts (imported above) —
+// it must happen there because ES module imports are hoisted ahead of this
+// module's body, and the config reads process.env at import time.
 
 class JarvisCoreService {
   private app: express.Application;

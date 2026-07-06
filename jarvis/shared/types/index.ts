@@ -30,6 +30,22 @@ export interface JarvisConfig {
     hudMode: boolean;
     ambientMode: boolean;
   };
+  /** Conversation intelligence — provider-agnostic by mandate (Phase 5). */
+  llm: {
+    provider: 'auto' | 'anthropic' | 'openai-compatible' | 'none';
+    /** Generic model override; empty string = use the provider's default. */
+    model: string;
+    maxTokens: number;
+    timeoutMs: number;
+    anthropic: {
+      apiKey: string;
+    };
+    openaiCompat: {
+      baseUrl: string;
+      apiKey: string;
+      model: string;
+    };
+  };
 }
 
 export interface ServiceStatus {
