@@ -1,0 +1,53 @@
+{
+  "era": "governance",
+  "phase": 5,
+  "name": "LLM-Backed Conversation (Model-Agnostic)",
+  "date": "2026-07-05",
+  "status": "COMPLETE",
+  "change_class": "C2",
+  "owner_decisions": {
+    "scope": "LLM-backed conversation",
+    "model_agnostic_mandate": "Kiaros never hardcoded to a provider/model; Anthropic first implementation only",
+    "mc_readonly_context": "deferred"
+  },
+  "implemented": [
+    "LLMProvider abstraction (types.ts): the only contract Kiaros knows",
+    "AnthropicProvider (@anthropic-ai/sdk, default claude-opus-4-8, no sampling params, refusal-safe)",
+    "OpenAICompatibleProvider (/v1/chat/completions: Ollama/LM Studio/llama.cpp/vLLM/OpenAI)",
+    "provider registry: config-only selection (KIAROS_LLM_PROVIDER = anthropic|openai-compatible|none|auto)",
+    "async ConversationManager: intent/mode/context retained; LLM-first; template fallback (never mute)",
+    "Kiaros persona system prompt with hard no-execution honesty constraints + TTS brevity",
+    "history (last 20 turns) threaded to provider; responseSource/provider/model metadata",
+    "config llm section + .env.example docs + jarvis/.env (local Ollama granite4.1:3b, fully on-machine)",
+    "fix: latent dotenv/ESM-hoisting bug (env values never reached config since B11)",
+    "desktop chat timeout 10s->60s; E2E reply check waits past Processing indicator; screenshot path parameterized"
+  ],
+  "verification": {
+    "core_build": "tsc 0 errors (clean dist)",
+    "desktop_build": "tsc + vite 0 errors",
+    "live_llm_reply": {
+      "provider": "openai-compatible",
+      "model": "granite4.1:3b",
+      "sample": "Good morning! I'm Kiaros, Teddie's assistant AI... (no direct execution)...",
+      "metadata_source": "llm"
+    },
+    "multi_turn_context_recall": "PASS",
+    "fallback_none_configured": "PASS (template)",
+    "fallback_provider_down": "PASS (warn + template)",
+    "anthropic_wire_test": "PASS (invalid key -> 401 authentication_error from api.anthropic.com with request_id; clean fallback). Live replies pending owner API key",
+    "config_only_switching": "PASS (same code served none/local/anthropic configurations)",
+    "browser_e2e": "7/7 PASS, console clean, genuine LLM reply via UI; AUDIT/PHASE5_desktop_e2e.png",
+    "phase4_persistence_regression": "PASS",
+    "no_mc_source_modified": true,
+    "no_openclaw_modified": true,
+    "no_forbidden_paths_added": true,
+    "new_listening_ports": 0
+  },
+  "open_items": [
+    "live Anthropic verification awaits owner API key (set ANTHROPIC_API_KEY in jarvis/.env)",
+    "local 3B model quality ceiling; experience scales with configured model",
+    "template-era history mildly pollutes LLM context (owner call to clear)",
+    "streaming responses and Anthropic prompt caching: future enhancements",
+    "MC read-only context + Approval Engine: deferred by owner decision"
+  ]
+}

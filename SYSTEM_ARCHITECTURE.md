@@ -55,9 +55,9 @@ Telegram is never a Kiaros control path.
 
 | Link in chain | Target | Current reality (2026-07-04) |
 |---|---|---|
-| Owner → Desktop (voice) | Natural two-way speech | IMPLEMENTED (browser Web Speech API); Desktop build currently broken by a stale `StatusBar` import |
+| Owner → Desktop (voice) | Natural two-way speech | IMPLEMENTED (browser Web Speech API; build fixed Phase 3, verified Phase 4) |
 | Desktop → Core | REST + WebSocket | IMPLEMENTED (REST polling only; Core `/ws` exists but unused by Desktop) |
-| Core conversation | LLM-backed executive reasoning | PARTIAL — rule-based intent detection + canned template responses; **no LLM anywhere in Kiaros** |
+| Core conversation | LLM-backed executive reasoning | IMPLEMENTED Phase 5 — model-agnostic `LLMProvider` abstraction (`jarvis/core/src/services/llm/`); providers: `anthropic` (SDK, default model `claude-opus-4-8`) and `openai-compatible` (Ollama/LM Studio/OpenAI/vLLM); selection by config only; rule-based intent detection retained; template responses remain the always-available fallback |
 | Core → Mission Control | Read status + create tasks | PARTIAL — health check only; `MissionControlClient` write methods exist but are never called; Core task/project APIs are in-memory stubs |
 | Approval Engine | Classify every task (levels 0–4) | SPECIFIED only (Phase 8 docs); zero code |
 | Mission Control → Gateway → OpenClaw | Dispatch to `main` agent | IMPLEMENTED and mature (upstream code, tested) |
@@ -107,7 +107,8 @@ VOICE_ARCHITECTURE.md, OPENCLAW_INTEGRATION.md.
 | Layer | Stack |
 |---|---|
 | Mission Control | Next.js 16, React 19, TypeScript 5, SQLite (better-sqlite3), Tailwind 3, Zustand, pnpm |
-| Kiaros Core | Node/Express 4, ws, Winston, tsx (dev runner), npm |
+| Kiaros Core | Node/Express 4, ws, Winston, tsx (dev runner), npm, `@anthropic-ai/sdk` (Anthropic provider module only) |
+| LLM layer | Provider abstraction (`KIAROS_LLM_PROVIDER`): `anthropic` (cloud — conversation **text** leaves the machine), `openai-compatible` (localhost runtime = fully local), or `none` (templates). Voice audio never leaves the machine regardless. Outbound connections only; no new ports |
 | Kiaros Desktop | React 18, Vite 5, TypeScript 5, Zustand 4, framer-motion, lucide-react, npm |
 | Voice | Browser Web Speech API (recognition + synthesis) — no server component |
 | OpenClaw | External install 2026.6.8, `/opt/homebrew/bin/openclaw`, gateway protocol v3 |

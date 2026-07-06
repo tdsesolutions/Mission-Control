@@ -36,7 +36,13 @@ UI branding says "Kiaros"; code identifiers say "jarvis".
 
 **Owns**
 - The conversation pipeline: IntentDetector → ModeSelector → ContextManager →
-  ResponseGenerator (currently rule-based/canned; LLM integration is PLANNED).
+  LLM provider (model-agnostic, Phase 5) with ResponseGenerator templates as
+  the always-available fallback.
+- The **LLM provider abstraction** (`src/services/llm/`): the only place
+  provider-specific code may live. Kiaros is never hardcoded to a provider or
+  model (owner mandate, 2026-07-05); selection is configuration
+  (`KIAROS_LLM_PROVIDER` in `jarvis/.env`). Adding a provider = one new
+  module + one registry entry, zero Kiaros changes.
 - Kiaros state (mode, status, context) and Kiaros memory
   (`core/memory/jarvis-memory.json` via MemoryService).
 - Health monitoring of the ecosystem (MonitorService polls gateway, Mission
@@ -53,11 +59,15 @@ UI branding says "Kiaros"; code identifiers say "jarvis".
   Engine exists in code — Constitution Art. V.
 - Protected dev ports.
 
-**Current state:** IMPLEMENTED as a shell. Routes for tasks/projects/
-conversation use in-memory stores ("will integrate with Mission Control").
-StateManager persistence is TODO stubs. MissionControlClient is used for the
-startup health check only. No authentication on HTTP or WS. Deliberately
-crash-proof init (every service init is non-fatal) — preserve this.
+**Current state:** Conversation is IMPLEMENTED (Phase 5): LLM-backed via the
+provider abstraction — currently running the local `openai-compatible`
+provider (Ollama `granite4.1:3b`, fully on-machine); the `anthropic` provider
+(default `claude-opus-4-8`) is implemented and verified to the wire, awaiting
+the owner's API key. Conversation history persists (Phase 4). Still stubs:
+tasks/projects routes (in-memory, awaiting MC integration), StateManager
+persistence TODOs, MissionControlClient beyond health checks. No
+authentication on HTTP or WS. Deliberately crash-proof init (every service
+init is non-fatal) and LLM-failure fallback to templates — preserve both.
 
 ## 3. Kiaros Shared (`jarvis/shared/`)
 

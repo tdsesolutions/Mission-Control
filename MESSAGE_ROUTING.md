@@ -39,22 +39,31 @@ jarvisStore.sendMessage(content)
 POST http://localhost:3010/api/v1/conversation/message  { content, type:'text' }  (abort 10s)
 ▼
 Kiaros Core conversation route
-│  stores user message (in-memory array, cap 100)
+│  stores user message (persisted via MemoryService, cap 100)
 ▼
-ConversationManager pipeline:
+ConversationManager pipeline (async since Phase 5):
 │  IntentDetector   — regex+keyword scoring → one of 9 intents
 │  ModeSelector     — conversation mode from intent + previous mode
 │  ContextManager   — message count, topic/project extraction
-│  ResponseGenerator— template response + optional follow-up  ← NO LLM
+│  LLM provider     — model-agnostic (services/llm; config-selected:
+│                     anthropic | openai-compatible | none); receives the
+│                     Kiaros persona system prompt + last 20 history turns
+│  └─ on failure/unconfigured → ResponseGenerator templates (never mute)
 ▼
-response JSON → Desktop renders as 'jarvis' role
+response JSON (metadata: responseSource, provider, model)
 ▼
-if autoSpeak: SpeechSynthesisService speaks the reply
+Desktop renders as 'jarvis' role; if autoSpeak: TTS speaks the reply
 ```
 
-**Critical truth:** this path terminates inside Kiaros Core. A spoken/typed
-"create a task" produces a scripted reply; **nothing reaches Mission
-Control.** (Constitution Art. IV/V; STATE_MANAGEMENT.md §3.)
+**Critical truth (unchanged by Phase 5):** this path still terminates inside
+Kiaros Core. The LLM only *converses* — its system prompt explicitly forbids
+claiming to act, and **nothing reaches Mission Control.** Task execution
+remains gated on the Approval Engine (Constitution Art. IV/V).
+
+**Data egress:** with the `anthropic` provider, conversation text (never
+audio) is sent to the Anthropic API — the only sanctioned outbound external
+connection in Kiaros. With `openai-compatible` pointed at localhost (the
+current runtime config: Ollama), everything stays on-machine.
 
 ## 3. Task Dispatch Path (Mission Control → OpenClaw) — IMPLEMENTED
 

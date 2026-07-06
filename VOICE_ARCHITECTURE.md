@@ -132,7 +132,7 @@ Gap analysis between today and the Article-I goal, for future phase planning:
 | Capability | Today | Needed for natural conversation |
 |---|---|---|
 | Speech → text | Push-to-talk, single utterance, browser STT | Continuous listening or wake word; better STT if browser quality insufficient |
-| Understanding | Regex intent scoring, canned responses, **no LLM** | LLM-backed conversation in Kiaros Core |
+| Understanding | ✅ LLM-backed since Phase 5 (model-agnostic provider; local Ollama today, Anthropic on key) | — |
 | Memory | Conversation history persists via MemoryService (Phase 4); working context still resets | Context memory wired into the pipeline |
 | Text → speech | Browser TTS, configurable voice | Possibly higher-quality local TTS (would justify building port-3013 service) |
 | Acting on speech | Nothing reaches Mission Control | Core → MC task creation, gated by an implemented Approval Engine |
