@@ -1,0 +1,28 @@
+{
+  "era": "governance",
+  "phase": 7,
+  "name": "Conversational Loop Core",
+  "date": "2026-07-06",
+  "status": "COMPLETE",
+  "change_class": "C1",
+  "implemented": [
+    "voiceStore rewritten as single loop orchestrator (ready->listening->thinking->speaking->ready|relisten)",
+    "reply speech WIRED (sendMessage returns reply; orchestrator speaks it) — Kiaros speaks for the first time",
+    "duplicate-submission bug killed (effect-based path removed; exactly-once submission in recognition callback)",
+    "exactly-once listen-cycle conclusion (onerror+onend double-fire guard; fixes InvalidStateError double-start)",
+    "conversation mode: hands-free auto-relisten, bounded silent relistens (2), persisted setting + UI toggle",
+    "echo protection: never-listen-while-speaking, settle delay, containment + 80% token overlap + 7s exact-match window for short replies",
+    "barge-in: mic press during speech stops TTS and listens",
+    "SpeechSynthesisService rewritten: sentence chunking, resume keepalive, per-session callbacks, benign interrupted/canceled, per-chunk watchdog, voiceschanged",
+    "honest degraded mode: template ResponseGenerator DELETED; responseSource 'llm'|'degraded'",
+    "StrictMode-safe init; interval leak fixed; thinking cannot stick"
+  ],
+  "verification": {
+    "core_build": "tsc 0 errors",
+    "desktop_build": "tsc + vite 0 errors",
+    "approval_suite": "40/40",
+    "standard_e2e": "7/7 (AUDIT/PHASE7_desktop_e2e.png)",
+    "degraded_mode": "honest replies for unconfigured and provider-down",
+    "lifecycle_proofs": "see QA_PROOF_GOV_PHASE8.json"
+  }
+}

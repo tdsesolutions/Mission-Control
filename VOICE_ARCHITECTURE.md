@@ -56,37 +56,35 @@ CURRENT_PHASE.md).
 | `voiceStore` (Zustand) | UI-facing state: permission tracking (`navigator.permissions` + `getUserMedia` fallback), listening/speaking flags, transcript, error surface |
 | `VoiceButton` / `VoiceStatusIndicator` / `VoiceSettingsPanel` | UI, **lazy-loaded with `.catch()` fallbacks** so voice failures can never break text chat |
 
-### The loop as wired today
+### The conversational loop (Phases 7–8 — the completed architecture)
 
 ```
-VoiceButton press
-  → voiceStore.startListening()            (permission check/request first)
-    → VoiceManager.startListening()
-      → SpeechRecognitionService (interim + final transcripts)
-        → final transcript
-          → ConversationPanel.handleVoiceTranscript (memoized callback)
-            → jarvisStore.sendMessage()     ← SAME PATH AS TYPED CHAT
-              → POST 3010 /api/v1/conversation/message
-                → ConversationManager (rule-based; see MESSAGE_ROUTING.md)
-              ← response text
-            → rendered in chat
-          → if autoSpeak: VoiceManager.speak() → SpeechSynthesisService
+Mic press → voiceStore.toggleConversation()      [voiceStore = SINGLE owner]
+  ready → listening → (final transcript, EXACTLY-ONCE submit)
+    → thinking: jarvisStore.sendMessage()        ← SAME PATH AS TYPED CHAT
+        → POST 3010 /api/v1/conversation/message → LLM reply
+    → speaking: chunked TTS (watchdogged, keepalive, exactly-once done)
+    → conversation mode ON:  settle 400ms → listening (hands-free multi-turn)
+      conversation mode OFF: ready
+  Bounded silence (2 quiet windows) → ready.  Every error path → ready.
+  Barge-in: press while speaking = stop TTS + listen immediately.
 ```
 
-**Architectural rule preserved here and to be kept:** voice input flows
-through the existing text-chat path (`jarvisStore.sendMessage`). There is no
-parallel voice-only pipeline into Core. Any future change must keep a single
-conversation entry point.
+Loop-integrity invariants (all automated in
+`jarvis/scripts/verify-voice-loop-e2e.mjs`):
+- Exactly one submission per final transcript; exactly one conclusion per
+  listen cycle (Web Speech fires `onerror` AND `onend` — conclude-once).
+- Exactly one spoken reply per request (per-session synthesis callbacks).
+- Never listening while speaking; echo filter (containment, 80% token
+  overlap, and a 7s exact-match window for short replies) — Kiaros cannot
+  converse with itself.
+- No stuck states: synthesis watchdog per chunk, `thinking` resolves in
+  `finally`, generation counter invalidates stale continuations on stop.
 
-### State machine (`VoiceManager`)
-
-```
-idle → listening → recognizing → thinking → (response) → speaking → idle
-                              ↘ error (any stage)
-```
-
-Guards: `isStarting` flag prevents duplicate starts; `onEnd` only resets to
-idle from listening/recognizing/thinking states.
+**Architectural rules to preserve:** voice flows through the single
+text-chat entry point (`jarvisStore.sendMessage`); the voiceStore is the
+only owner of loop state (submission via React effects is FORBIDDEN — it
+caused the historical duplicate-reply bug).
 
 ## 4. Defect History (all resolved)
 

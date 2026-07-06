@@ -50,9 +50,11 @@ ConversationManager pipeline (async since Phase 5):
 │                     Kiaros persona system prompt + last 20 history turns
 │  └─ on failure/unconfigured → ResponseGenerator templates (never mute)
 ▼
-response JSON (metadata: responseSource, provider, model)
+response JSON (metadata: responseSource ['llm'|'degraded'], provider, model)
 ▼
-Desktop renders as 'jarvis' role; if autoSpeak: TTS speaks the reply
+Desktop renders as 'jarvis' role; voice loop SPEAKS the reply (chunked TTS,
+exactly once), then auto-relistens in conversation mode (Phase 7 loop —
+see VOICE_ARCHITECTURE.md for the invariants)
 ```
 
 **Critical truth (unchanged by Phase 5):** this path still terminates inside

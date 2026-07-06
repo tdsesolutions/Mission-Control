@@ -1,0 +1,26 @@
+{
+  "era": "governance",
+  "phase": 8,
+  "name": "Lifecycle Stability Proof (Kiaros Completion)",
+  "date": "2026-07-06",
+  "status": "COMPLETE",
+  "harness": "jarvis/scripts/verify-voice-loop-e2e.mjs (mock SpeechRecognition + spied speechSynthesis over the real Desktop/Core/LLM stack)",
+  "proofs": {
+    "five_turn_lifecycle": "8/8 PASS — each turn exactly 1 request, 1 spoken reply, auto-relisten",
+    "ten_turn_soak": "8/8 PASS",
+    "echo_filtered": "PASS — own speech re-delivered, zero new messages",
+    "bounded_silence_to_ready": "PASS — max 2 silent windows then ready",
+    "restart_and_stop_to_ready": "PASS",
+    "core_restart_mid_conversation": "PASS — desktop reconnected without refresh; subsequent spoken turn completed",
+    "degraded_mode_honest": "PASS (both failure shapes)",
+    "zero_console_errors": "PASS across all runs",
+    "regressions": "approval 40/40; standard e2e 7/7; builds clean"
+  },
+  "bugs_found_by_harness": [
+    "double-armed relisten (onerror+onend) -> InvalidStateError",
+    "short self-echo bypassed containment minimum (fixed with 7s exact-match window)"
+  ],
+  "evidence": ["AUDIT/PHASE8_voice_loop_e2e.png", "AUDIT/PHASE8_voice_soak.png"],
+  "remaining_human_step": "owner acceptance script in PHASE8_REPORT.md section 4 (physical mic/speaker)",
+  "platform_constraints": ["Chromium-family browser required for speech recognition"]
+}

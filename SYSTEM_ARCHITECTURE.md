@@ -55,7 +55,7 @@ Telegram is never a Kiaros control path.
 
 | Link in chain | Target | Current reality (2026-07-04) |
 |---|---|---|
-| Owner → Desktop (voice) | Natural two-way speech | IMPLEMENTED (browser Web Speech API; build fixed Phase 3, verified Phase 4) |
+| Owner → Desktop (voice) | Natural two-way speech | **COMPLETE (Phases 7–8)** — full hands-free conversational loop: listen → understand → reply → speak → relisten; exactly-once semantics, echo protection, bounded silence, barge-in; proven by automated 10-turn soak (`verify-voice-loop-e2e.mjs`) |
 | Desktop → Core | REST + WebSocket | IMPLEMENTED (REST polling only; Core `/ws` exists but unused by Desktop) |
 | Core conversation | LLM-backed executive reasoning | IMPLEMENTED Phase 5 — model-agnostic `LLMProvider` abstraction (`jarvis/core/src/services/llm/`); providers: `anthropic` (SDK, default model `claude-opus-4-8`) and `openai-compatible` (Ollama/LM Studio/OpenAI/vLLM); selection by config only; rule-based intent detection retained; template responses remain the always-available fallback |
 | Core → Mission Control | Read status + create tasks | PARTIAL — health check only; `MissionControlClient` write methods exist but are never called; Core task/project APIs are in-memory stubs |
