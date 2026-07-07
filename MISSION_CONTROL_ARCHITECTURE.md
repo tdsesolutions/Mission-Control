@@ -100,8 +100,8 @@ The only sanctioned Kiaros → Mission Control interface:
 | Operation | Endpoint | Status |
 |---|---|---|
 | Health | `GET /api/health` | IMPLEMENTED (used by MonitorService) |
-| Read tasks/agents/projects | `GET /api/tasks`, `/api/agents`, `/api/projects` | Client methods exist; **not called by any Kiaros route yet** |
-| Create/update tasks | `POST/PATCH /api/tasks…` | Client methods exist; **FORBIDDEN to wire until Approval Engine is implemented** (Constitution Art. V) |
+| Read tasks/agents/projects | `GET /api/tasks`, `/api/agents`, `/api/projects` | IMPLEMENTED (2026-07-07): typed, timeboxed (10s) reads with x-api-key; Kiaros task/project routes proxy these (degraded envelope when MC is down) |
+| Create/update tasks | `POST/PATCH /api/tasks…` | FORBIDDEN — write methods deliberately absent from the client; Kiaros write endpoints answer 501. Unlocking requires an owner-approved phase routed through the (implemented) Approval Engine (Art. V) |
 | Live events | `GET /api/events` (SSE) | PLANNED — Phase 9 spec calls for it; not implemented in Kiaros |
 
 Auth: Kiaros Core must use a Mission Control API key
@@ -112,8 +112,8 @@ Auth: Kiaros Core must use a Mission Control API key
 - **"Exec approvals" ≠ "Approval Engine."** Mission Control ships an upstream
   exec-approval feature for gateway exec commands
   (`src/lib/exec-approval-utils.ts`, exec-approval panel). The project's
-  Approval Engine (Phase 8 spec, levels 0–4) is a separate, unimplemented
-  design. Documents must never cite the former as evidence the latter exists.
+  Approval Engine (B8 spec, implemented Governance Phase 6 in Kiaros Core)
+  is a separate system; the two share vocabulary only.
 - **Port 3002 vs 3000.** Upstream README/CLAUDE.md say 3000; this install
   runs 3002 per the Phase 10 port registry. 3000 is a protected web-dev port
   here.

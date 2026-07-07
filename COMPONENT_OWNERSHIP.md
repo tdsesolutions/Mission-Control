@@ -27,10 +27,11 @@ responsibility), what it **must never touch**, and its **current state**.
   to Kiaros Core.
 - Any persistence beyond browser localStorage (voice settings only).
 
-**Current state:** IMPLEMENTED, with defects: `App.tsx` imports the deleted
-`./components/StatusBar` (breaks `tsc && vite build`); `voiceStore.
-processTranscript()` contains an ESM-invalid `require()` (dead code path).
-UI branding says "Kiaros"; code identifiers say "jarvis".
+**Current state:** COMPLETE. Full conversational voice loop (Phases 7–8);
+layout corrections 2026-07-06 (communication interface is the primary
+workspace). Historical defects (StatusBar import, `require()` in
+voiceStore) fixed Phase 3. UI branding says "Kiaros"; code identifiers say
+"jarvis" (reconciliation owner-gated).
 
 ## 2. Kiaros Core (`jarvis/core/`, port 3010)
 
@@ -55,19 +56,20 @@ UI branding says "Kiaros"; code identifiers say "jarvis".
 - The OpenClaw Gateway or any OpenClaw file (`~/.openclaw`). All execution
   requests must go through Mission Control's API.
 - Mission Control's database, filesystem, or source code.
-- Mission Control **writes** (task/project creation) until the Approval
-  Engine exists in code — Constitution Art. V.
+- Mission Control **writes** (task/project creation) — permitted only in a
+  future owner-approved phase routed through the (implemented) Approval
+  Engine; until then Kiaros write endpoints answer 501 — Constitution Art. V.
 - Protected dev ports.
 
-**Current state:** Conversation is IMPLEMENTED (Phase 5): LLM-backed via the
-provider abstraction — currently running the local `openai-compatible`
-provider (Ollama `granite4.1:3b`, fully on-machine); the `anthropic` provider
-(default `claude-opus-4-8`) is implemented and verified to the wire, awaiting
-the owner's API key. Conversation history persists (Phase 4). Still stubs:
-tasks/projects routes (in-memory, awaiting MC integration), StateManager
-persistence TODOs, MissionControlClient beyond health checks. No
-authentication on HTTP or WS. Deliberately crash-proof init (every service
-init is non-fatal) and LLM-failure fallback to templates — preserve both.
+**Current state:** COMPLETE (project completion, 2026-07-07). Conversation
+is LLM-backed via the provider abstraction (local Ollama live; Anthropic
+wire-verified, awaiting owner key) with honest degraded mode. Conversation
+history and StateManager mode/preferences persist via MemoryService.
+Task/project routes are read-through PROXIES of Mission Control (writes
+501-gated per Art. V); MissionControlClient does typed, timeboxed reads
+only. Auth: optional shared-secret (`KIAROS_CORE_TOKEN`) on HTTP + WS, off
+by default on localhost. Deliberately crash-proof init and LLM-failure
+honest degradation — preserve both.
 
 ## 3. Kiaros Shared (`jarvis/shared/`)
 
@@ -79,8 +81,7 @@ init is non-fatal) and LLM-failure fallback to templates — preserve both.
 **Must never touch**
 - Anything at runtime — it is types/constants only, no side effects.
 
-**Current state:** IMPLEMENTED. Known stale value: `FEATURES.VOICE = false`
-while voice is implemented. Known history: Core cannot use `@shared/*` path
+**Current state:** IMPLEMENTED (`FEATURES.VOICE` reconciled Phase 3). Known history: Core cannot use `@shared/*` path
 aliases (tsx does not resolve them — caused the Phase 11 silent crash);
 Core uses relative imports, Desktop's Vite alias may use `@shared`.
 
@@ -161,9 +162,12 @@ time.
 
 **Must never touch**
 - Kiaros scripts must never kill processes on protected or non-Kiaros ports.
-- The Phase 10 launcher plan references `launch-ai-services.sh` /
-  `stop-ai-services.sh` / `check-ai-services.sh` — these are SPECIFIED, NOT
-  BUILT. Nothing may claim otherwise.
+- `launch-ai-services.sh` / `stop-ai-services.sh` / `check-ai-services.sh`
+  are IMPLEMENTED (2026-07-07) at `jarvis/scripts/` (not repo-root scripts/,
+  which is upstream-owned — documented deviation from the B10 plan). They
+  manage ONLY Kiaros ports (3010/3011); the OpenClaw Gateway and Mission
+  Control are health-VERIFIED, never started/stopped/killed; unbuilt
+  extension services are skipped gracefully.
 
 ## 9. Naming (Cross-Cutting)
 

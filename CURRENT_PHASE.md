@@ -12,10 +12,10 @@ disagrees with this file, this file wins.
 
 | Field | Value |
 |---|---|
-| **Current official phase** | **Phase 8 — Lifecycle Stability Proof (Kiaros Completion)** |
-| **Phase 8 status** | ✅ COMPLETE (2026-07-06) — **Kiaros is functionally complete as a conversational assistant**, pending the owner acceptance test (PHASE8_REPORT.md §4 — mic in hand, the one step automation cannot do) |
-| **Next phase** | Awaiting owner: acceptance verdict + direction (ecosystem work resumes only on owner decision) |
-| **System state** | Frozen for implementation changes between phases; documentation-only work permitted (C0) |
+| **Governing directive** | **PROJECT COMPLETION (2026-07-06):** phase workflow discontinued; the governing documents are the specification; work continues until every requirement is implemented and verified |
+| **Status** | ✅ **ALL IMPLEMENTABLE REQUIREMENTS COMPLETE (2026-07-07)** — see the Final Project Completion Report. Remaining items are owner-gated by the Constitution itself (list below) |
+| **System state** | Kiaros COMPLETE: voice loop, model-agnostic LLM, persistence, Approval Engine, MC read integration, honest degraded modes, launcher tooling — all verified |
+| **Open defects** | None. (Defects 1–8 all closed; see history below) |
 
 ## Phase Numbering — Two Eras
 
@@ -64,13 +64,17 @@ To avoid confusion, phases are recorded in two eras:
 1. ~~Desktop build broken (StatusBar import)~~ ✅ FIXED Phase 3
 2. ~~`voiceStore.processTranscript()` ESM-invalid `require()`~~ ✅ FIXED Phase 3
 3. ~~`FEATURES.VOICE = false` stale flag~~ ✅ FIXED Phase 3 (B11 docs still say "deferred" — historical record, left as-is)
-4. Kiaros Core StateManager persistence is TODO stubs; tasks/projects remain
-   in-memory display stubs. (~~Conversation history in-memory~~ ✅ FIXED
-   Phase 4 — persists via MemoryService, restart-survival proven.)
-5. Kiaros Core API unauthenticated (localhost-bound mitigation only).
-6. Health-check flapping (5s timeout vs slow MC responses). Partially
-   improved Phase 4 (gateway "live" false-negative fixed); MC's
-   `/api/health` is itself slow/timing out — worth owner attention.
+4. ~~StateManager persistence TODOs; tasks/projects stubs~~ ✅ FIXED
+   2026-07-07 — mode/preferences persist via MemoryService (verified across
+   restart); task/project routes are read-through proxies of Mission
+   Control (stub stores deleted; split-brain hazard structurally closed).
+5. ~~Kiaros Core API unauthenticated~~ ✅ FIXED 2026-07-07 — optional
+   shared-secret (`KIAROS_CORE_TOKEN`) on /api/v1/* and /ws; off by default
+   on localhost; Desktop supports it via `VITE_KIAROS_CORE_TOKEN`.
+6. ~~Health-check flapping (Kiaros side)~~ ✅ FIXED 2026-07-07 — monitor
+   timeout calibrated to 12s (rule R10). NOTE: the owner-managed Mission
+   Control instance itself was found wedged (268% CPU since ~2026-07-03)
+   and later went fully down — an owner-side operational matter.
 7. ~~Entire `jarvis/` tree + all phase/governance docs untracked in git~~
    ✅ FIXED Phase 3 (committed locally; `origin` is the upstream OSS repo —
    never push; a private remote/backup is an open owner decision)
@@ -92,18 +96,28 @@ To avoid confusion, phases are recorded in two eras:
 - Explicitly out of scope forever without Constitution amendment:
   Telegram↔Kiaros bridging (Telegram is a Claw backup path only)
 
-## Owner Decisions Now Pending
+## Owner Decisions Now Pending (everything left is constitutionally yours)
 
-1. **Kiaros acceptance:** run the 5-step acceptance script
-   (PHASE8_REPORT.md §4) — speak to it, hear it answer, interrupt it, let
-   it go quiet. Your verdict closes the Kiaros completion objective.
-2. **What next (ecosystem, owner-defined):** candidates from the shelved
-   list — Mission Control read-only context (needs `MISSION_CONTROL_API_KEY`
-   in jarvis/.env), owner-approval workflow (pending-decision queue),
-   Core API authentication, streaming/latency polish, wake word (new
-   dependency), higher-quality local STT/TTS (port-3013 territory).
-3. Carried over: private backup remote; MC `/api/health` slowness;
-   Anthropic key (optional — Kiaros runs fully local today).
+1. **Voice acceptance:** the 5-step mic-in-hand script (PHASE8_REPORT.md §4).
+2. **Mission Control instance:** it was wedged at 268% CPU since ~2026-07-03
+   and is now fully down — owner-managed; restart/diagnosis is your call.
+   Kiaros read integration is verified and activates automatically when MC
+   is healthy (API key already configured in jarvis/.env).
+3. **Billing investigation:** evidence gathered (read-only) shows
+   `~/.openclaw/openclaw.json` was reconfigured 2026-07-03 12:55/12:58
+   (backup files) — before this project's sessions began — and Claw agents
+   are actively running sessions (exec-approvals/memory churn). Nothing in
+   this repo can spend API money. Owner to correlate with provider bills.
+4. **"Nothing connected to Claw"?** If that remark is a standing order,
+   say so: Kiaros's read-only gateway health ping and MC's built-in gateway
+   link would be disabled/reconfigured under a C3 change with your approval.
+5. **MC write integration** (Kiaros creating tasks through the Approval
+   Engine + an owner-approval workflow): the one remaining SPECIFIED
+   capability; requires your explicit phase approval (Art. V).
+6. Optional/carried: Anthropic key (Kiaros runs fully local today);
+   private backup remote; Kiaros/jarvis naming reconciliation; SSE event
+   bridge (PLANNED; needs plane-ownership definition); ports 3012–3016
+   remain reservations.
 
 ---
 
@@ -117,3 +131,6 @@ To avoid confusion, phases are recorded in two eras:
 | 2026-07-05 | Phase 5 approved (owner: model-agnostic mandate, Anthropic first-provider-only, MC context deferred), executed, and completed; Kiaros now LLM-backed (local Ollama live; Anthropic wired, awaiting key); Phase 6 proposal (Approval Engine) recorded |
 | 2026-07-05 | Phase 6 approved (owner: decision-authority-only, no Anthropic dependency, archive history) executed, and completed; Approval Engine live with 40/40 tests; Constitution v1.1; Phase 7 proposal (MC read-only context) recorded |
 | 2026-07-06 | Owner redefined objective: "Complete Kiaros" (product governs phase order). KIAROS_COMPLETION_ROADMAP.md produced; Phases 7 (loop core) and 8 (stability proof) executed and completed. Kiaros functionally complete pending owner acceptance |
+| 2026-07-06 | Layout corrections (communication interface = primary workspace, full-width) |
+| 2026-07-06 | PROJECT COMPLETION DIRECTIVE issued: phase workflow discontinued; governing docs = specification |
+| 2026-07-07 | Completion delta closed: MC read integration (read-through proxies, honest degraded envelope), StateManager persistence, optional Core auth (HTTP+WS), monitor timeout calibration, launcher scripts, honest write gates. All defects closed. Constitution v1.2. Owner-side finding: MC instance wedged since ~07-03, then down; OpenClaw config changed 07-03 (pre-dating this project's sessions) — billing evidence recorded read-only |

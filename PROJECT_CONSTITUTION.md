@@ -71,12 +71,19 @@ prevent this permanently:
    **PARTIAL** (code exists, incomplete or unverified), **SPECIFIED** (design
    docs only, zero code), **PLANNED** (roadmap only).
 2. The following are **SPECIFIED, NOT IMPLEMENTED**, and no document may
-   imply otherwise (updated 2026-07-05):
-   - Kiaros Core → Mission Control task/project write integration
+   imply otherwise (updated 2026-07-07):
+   - Kiaros Core → Mission Control task/project **write** integration
+     (owner-gated; reads are IMPLEMENTED as of 2026-07-07 via read-through
+     proxies with MC as the sole system of record)
    - Memory Service (3012), Voice Service (3013), Computer Control (3014),
-     Service Monitor (3015), Notification Service (3016)
-   - Launcher scripts `launch-ai-services.sh` / `stop-ai-services.sh` /
-     `check-ai-services.sh`
+     Service Monitor (3015), Notification Service (3016) — reserved ports,
+     not requirements
+
+   The launcher scripts (`launch-ai-services.sh` / `stop-ai-services.sh` /
+   `check-ai-services.sh`) are **IMPLEMENTED** (2026-07-07) at
+   `jarvis/scripts/`, constrained by this Constitution: they manage only
+   Kiaros ports and never start, stop, or touch the OpenClaw Gateway or
+   Mission Control.
 
    The **Approval Engine is IMPLEMENTED** (Governance Phase 6, 2026-07-05)
    as a deterministic decision authority in Kiaros Core
@@ -130,3 +137,4 @@ Amendments to this Constitution require:
 |---------|------|--------|
 | 1.0 | 2026-07-04 | Initial constitution (Phase 2 deliverable) |
 | 1.1 | 2026-07-05 | Art. IV/V updated for the implemented Approval Engine (owner-approved Phase 6): engine is a deterministic decision authority in Kiaros Core; execution wiring remains forbidden outside a future owner-approved phase that routes through it |
+| 1.2 | 2026-07-07 | Art. IV status updates under the project-completion directive: MC READS implemented (writes remain owner-gated); launcher scripts implemented at jarvis/scripts under constitutional constraints; ports 3012–3016 clarified as reservations, not requirements |

@@ -23,45 +23,44 @@ project's #1 documented architectural risk.
 | 1 | `.data/mission-control.db` | Mission Control | SQLite (better-sqlite3); schema.sql + migrations | **Durable — system of record** | IMPLEMENTED |
 | 2 | MC settings | Mission Control | `settings` table (overrides env, e.g. API key) | Durable | IMPLEMENTED |
 | 3 | MC client state | MC UI | Single Zustand store, refreshed via SSE/WS | Ephemeral | IMPLEMENTED |
-| 4 | Kiaros state (mode/status/context) | Kiaros Core | `JarvisStateManager`, in-memory | **None — `loadState`/`saveState` are TODO stubs** | PARTIAL |
-| 5 | Kiaros memory file | Kiaros Core | `MemoryService` → `jarvis/core/memory/jarvis-memory.json` (shared instance via `getMemoryService()`) | Durable | IMPLEMENTED; carries conversation history since Phase 4; still not wired into StateManager |
+| 4 | Kiaros state (mode/preferences) | Kiaros Core | `JarvisStateManager` → MemoryService snapshot (`state.snapshot`), saved on change | **Durable — mode survives restarts (verified 2026-07-07)** | IMPLEMENTED |
+| 5 | Kiaros memory file | Kiaros Core | `MemoryService` → `jarvis/core/memory/jarvis-memory.json` (shared instance via `getMemoryService()`) | Durable | IMPLEMENTED; carries conversation history (Phase 4) and the StateManager snapshot (2026-07-07) |
 | 6 | Kiaros conversations | Kiaros Core | Loaded/persisted through MemoryService (key `conversation.history`), cap 100, saved after each exchange | **Durable — survives Core restarts (verified Phase 4)** | IMPLEMENTED |
-| 7 | Kiaros "tasks" / "projects" | Kiaros Core | In-memory `Map`s in route modules | Lost on restart | STUB — marked "will integrate with Mission Control" |
+| 7 | Kiaros tasks/projects views | Kiaros Core | READ-THROUGH PROXY of Mission Control — no local store exists at all | N/A — MC is the only store | IMPLEMENTED 2026-07-07; writes owner-gated (501) |
 | 8 | Kiaros event history | Kiaros Core | EventBus ring buffer (1,000 events) | Lost on restart | IMPLEMENTED (by design) |
 | 9 | Desktop chat/connection | Kiaros Desktop | `jarvisStore` (Zustand) | Ephemeral (rehydrates from Core on load) | IMPLEMENTED |
 | 10 | Voice settings | Kiaros Desktop | localStorage via `VoiceSettingsManager` | Durable (browser) | IMPLEMENTED |
 | 11 | OpenClaw sessions/config | OpenClaw | `~/.openclaw` | Durable | External — never touched |
 
-## 3. The Split-Brain Hazard (Documented, Unresolved)
+## 3. The Split-Brain Hazard (RESOLVED 2026-07-07)
 
-Kiaros Core exposes `/api/v1/tasks` and `/api/v1/projects` whose shapes mirror
-Mission Control's API but whose data lives in in-memory Maps (#7). These two
-"task" concepts have **no synchronization**:
+Historically, Kiaros exposed `/api/v1/tasks`/`/api/v1/projects` backed by
+in-memory stub Maps — a second "task" concept with no synchronization to
+Mission Control (B11's report even claimed the integration existed; the
+Honesty Doctrine, Art. IV, was born from that).
 
-- Anything built against Kiaros's task API will silently diverge from the
-  real queue in Mission Control.
-- Phase 11's completion report marked this integration "✅", which was
-  inaccurate; the Honesty Doctrine (Constitution Art. IV) exists because of
-  this.
+**Resolution:** the stub stores are deleted. Kiaros routes are read-through
+proxies with Mission Control as the sole system of record, exactly as this
+document's standing rule required. When MC is unreachable, the proxy returns
+an honest degraded envelope (`MISSION_CONTROL_UNAVAILABLE`) — it never
+fabricates an empty queue.
 
-**Standing rules until the integration phase:**
-1. Kiaros's in-memory task/project stores are treated as **display stubs**.
-   No feature may rely on them as a source of truth.
-2. When integration is built, Kiaros routes must **proxy** Mission Control
-   (read-through/write-through with MC as system of record), not mirror it.
-   Kiaros must never persist its own parallel task state.
-3. Writes remain forbidden until the Approval Engine exists (Art. V).
+**Standing rules (still binding):**
+1. Kiaros must never persist its own parallel task state.
+2. Writes remain forbidden until an owner-approved phase routes them through
+   the Approval Engine (Art. V); Kiaros write endpoints answer 501 honestly.
 
 ## 4. Persistence Gaps (Known, Not Yet Fixed)
 
 Recorded for future phases; do not fix outside change control:
 
-1. `JarvisStateManager.loadState()/saveState()` are TODOs — mode and
-   preferences reset on Core restart (except mode, which Desktop re-syncs).
+1. ~~StateManager persistence TODOs~~ — RESOLVED 2026-07-07 (MemoryService
+   snapshot; mode verified across restart).
 2. ~~Conversation history lost on Core restart~~ — RESOLVED Phase 4
    (persisted through MemoryService; restart survival verified).
-3. Tasks/projects route stores (#7) remain in-memory display stubs by
-   design until the Mission Control integration phase.
+3. ~~Tasks/projects in-memory stubs~~ — RESOLVED 2026-07-07: the stub
+   stores are deleted; routes proxy Mission Control (the split-brain
+   hazard in §3 is structurally closed — there is no second task store).
 
 ## 5. Real-Time State Propagation
 
@@ -81,8 +80,8 @@ them must define event ownership first or risk loops/double-processing.
 | File | Governs |
 |---|---|
 | `.env` (root) | Mission Control: port 3002, gateway host/port/token, coordinator agent, data dir, security flags |
-| `jarvis/.env` (from `jarvis/.env.example`) | Kiaros: core/desktop ports, `MISSION_CONTROL_URL` (http://localhost:3002), `MISSION_CONTROL_API_KEY`, log level, memory path |
-| `jarvis/shared/constants/index.ts` | Compile-time ports/endpoints/feature flags (note stale `FEATURES.VOICE=false`) |
+| `jarvis/.env` (from `jarvis/.env.example`) | Kiaros: core/desktop ports, `MISSION_CONTROL_URL`/`MISSION_CONTROL_API_KEY` (reads), LLM provider selection, optional `KIAROS_CORE_TOKEN`, log level, memory path |
+| `jarvis/shared/constants/index.ts` | Compile-time ports/endpoints/feature flags |
 | `AI_SERVICE_PORT_REGISTRY.md` | Authoritative port assignments (Phase 10) |
 
 Rule: ports live in the registry first, constants second, env third — all

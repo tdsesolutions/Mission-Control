@@ -58,7 +58,7 @@ Telegram is never a Kiaros control path.
 | Owner → Desktop (voice) | Natural two-way speech | **COMPLETE (Phases 7–8)** — full hands-free conversational loop: listen → understand → reply → speak → relisten; exactly-once semantics, echo protection, bounded silence, barge-in; proven by automated 10-turn soak (`verify-voice-loop-e2e.mjs`) |
 | Desktop → Core | REST + WebSocket | IMPLEMENTED (REST polling only; Core `/ws` exists but unused by Desktop) |
 | Core conversation | LLM-backed executive reasoning | IMPLEMENTED Phase 5 — model-agnostic `LLMProvider` abstraction (`jarvis/core/src/services/llm/`); providers: `anthropic` (SDK, default model `claude-opus-4-8`) and `openai-compatible` (Ollama/LM Studio/OpenAI/vLLM); selection by config only; rule-based intent detection retained; template responses remain the always-available fallback |
-| Core → Mission Control | Read status + create tasks | PARTIAL — health check only; `MissionControlClient` write methods exist but are never called; Core task/project APIs are in-memory stubs |
+| Core → Mission Control | Read status + create tasks | READS IMPLEMENTED (project completion, 2026-07-07): Kiaros task/project routes are read-through PROXIES of MC (MC = system of record; honest degraded envelope when MC is down). WRITES remain owner-gated through the Approval Engine (Art. V) — write endpoints answer 501 honestly |
 | Approval Engine | Classify every request | IMPLEMENTED Phase 6 — deterministic decision authority in Kiaros Core (`services/approval/`): approved / requires_owner_approval / requires_clarification / rejected; 40-case test suite; audit trail; consulted by conversation for action-class requests (information only). **No execution path exists or consults it yet** |
 | Mission Control → Gateway → OpenClaw | Dispatch to `main` agent | IMPLEMENTED and mature (upstream code, tested) |
 | Telegram ↔ Claw | Backup channel only | External to this repo; policy documented here |
@@ -124,12 +124,12 @@ Full list with rationale in the Phase 1 Architecture Audit; the load-bearing one
    SQLite tasks; identical shapes, zero sync. (STATE_MANAGEMENT.md)
 2. **Safety chain partly notional** — approval gate is paper until built.
    (PROJECT_CONSTITUTION.md Art. IV–V)
-3. **Unauthenticated Kiaros Core** on 3010 with permissive localhost CORS.
+3. Kiaros Core auth: optional shared-secret (`KIAROS_CORE_TOKEN`) on /api/v1/* and /ws — off by default (open on localhost), owner-enableable.
 4. **Untracked work** — `jarvis/` and all phase docs are not in version control.
 5. **Gateway protocol churn** — OpenClaw has removed RPC methods before
    (issue #645); both MC and future Kiaros code must tolerate this.
-6. **Health-check flapping** — 5s fetch timeouts mark Mission Control
-   "unhealthy" during slow responses (visible in `jarvis/logs/core.log`).
+6. Health-check flapping — mitigated: monitor timeout calibrated to 12s
+   (rule R10); an actually-down MC still reports honestly as unhealthy.
 
 ---
 

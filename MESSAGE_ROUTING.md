@@ -124,8 +124,8 @@ bypassing the engine is a FORBIDDEN change class (Constitution Art. V v1.1).
 | Message | Mechanism | Status |
 |---|---|---|
 | Health probe | `GET 3002/api/health` every 30s (MonitorService, 5s timeout) | IMPLEMENTED |
-| Read tasks/agents/projects | `MissionControlClient.getTasks()/getAgents()/getProjects()` with Bearer API key | Code exists, **never called by any route** |
-| Create/update task | `MissionControlClient.createTask()/updateTask()/dispatchTask()` | Code exists, **never called; FORBIDDEN until Approval Engine** |
+| Read tasks/agents/projects | `MissionControlClient.listTasks()/getTask()/listProjects()/listAgents()` (x-api-key, 10s timebox) | IMPLEMENTED (2026-07-07) — consumed by the Kiaros task/project proxy routes |
+| Create/update task | (no client methods — deliberately absent) | FORBIDDEN until an owner-approved phase routes writes through the Approval Engine; Kiaros write endpoints answer 501 honestly |
 | Subscribe to MC events | SSE `/api/events` | SPECIFIED (Phase 9), NOT IMPLEMENTED |
 
 ## 5. Event Broadcast Paths
