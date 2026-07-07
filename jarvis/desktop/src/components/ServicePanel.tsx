@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { coreHeaders } from '../services/coreAuth';
 import { Server, Activity, Cpu } from 'lucide-react';
 
 interface ServiceStatus {
@@ -36,6 +37,7 @@ export function ServicePanel() {
         const timeout = setTimeout(() => controller.abort(), 3000);
         const response = await fetch(`${JARVIS_CORE_URL}/api/v1/status/services`, {
           method: 'GET',
+          headers: coreHeaders(),
           signal: controller.signal,
         });
         clearTimeout(timeout);

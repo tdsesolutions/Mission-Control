@@ -246,6 +246,9 @@ try {
   check('loop restarts cleanly after ready', true);
 
   // ---- Manual stop → ready ----
+  // Wait for the auto-relisten first: clicking while Kiaros still SPEAKS is
+  // barge-in (stop TTS + listen) by design, not a stop.
+  await waitForListening(TURN_TIMEOUT_MS);
   await micButton().click();
   await page.waitForTimeout(400);
   const titleAfterStop = await buttonTitle();

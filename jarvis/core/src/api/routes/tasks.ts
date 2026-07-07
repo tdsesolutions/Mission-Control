@@ -1,174 +1,84 @@
 /**
- * Tasks Route
- * Handle task management through Mission Control
+ * Tasks Route — READ-THROUGH PROXY of Mission Control.
+ *
+ * Mission Control's SQLite is the ONLY durable task store; Kiaros never
+ * mirrors it and never persists its own task state (STATE_MANAGEMENT §1/§3).
+ * The former in-memory stub store (placeholder behavior) is gone.
+ *
+ * Writes are constitutionally gated: no Kiaros→MC task creation until an
+ * owner-approved phase routes it through the Approval Engine
+ * (PROJECT_CONSTITUTION Art. V). Write endpoints answer honestly.
  */
 
 import { Router } from 'express';
-import { logger } from '../../utils/logger.js';
-import type { Task, TaskStatus, TaskPriority } from '../../../../shared/types/index.js';
+import { getMissionControlClient } from '../../services/missionControlClient.js';
 
 const router = Router();
 
-// In-memory task store (will integrate with Mission Control)
-const tasks: Map<string, Task> = new Map();
+const envelope = (req: { headers: Record<string, unknown> }) => ({
+  timestamp: new Date(),
+  requestId: (req.headers['x-request-id'] as string) || 'unknown',
+});
 
-router.get('/', (req, res) => {
-  const status = req.query.status as TaskStatus | undefined;
-  const projectId = req.query.projectId as string | undefined;
-  
-  let taskList = Array.from(tasks.values());
-  
-  if (status) {
-    taskList = taskList.filter(t => t.status === status);
+const upstreamError = (error?: string, status?: number) => ({
+  success: false,
+  error: {
+    code: status === 404 ? 'TASK_NOT_FOUND' : 'MISSION_CONTROL_UNAVAILABLE',
+    message: error ?? 'Mission Control did not respond.',
+  },
+});
+
+router.get('/', async (req, res) => {
+  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const limit = parseInt(String(req.query.limit ?? '50'), 10) || 50;
+
+  const result = await getMissionControlClient().listTasks({ status, limit });
+  if (!result.ok || !result.data) {
+    // Degraded envelope with HTTP 200: this endpoint is polled by the
+    // Desktop, and browsers console-log every non-2xx resource load — a
+    // known-degraded upstream must not spam errors. success:false +
+    // error.code carries the honest truth (Art. IV).
+    res.json({ ...upstreamError(result.error, result.status), degraded: true, ...envelope(req) });
+    return;
   }
-  
-  if (projectId) {
-    taskList = taskList.filter(t => t.projectId === projectId);
-  }
-  
-  // Sort by updatedAt descending
-  taskList.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  
+
   res.json({
     success: true,
-    data: taskList,
-    timestamp: new Date(),
-    requestId: req.headers['x-request-id'] || 'unknown',
+    data: result.data.tasks,
+    total: result.data.total,
+    source: 'mission-control',
+    ...envelope(req),
   });
 });
 
-router.get('/:id', (req, res) => {
-  const task = tasks.get(req.params.id);
-  
-  if (!task) {
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'TASK_NOT_FOUND',
-        message: `Task ${req.params.id} not found`,
-      },
-      timestamp: new Date(),
-      requestId: req.headers['x-request-id'] || 'unknown',
-    });
+router.get('/:id', async (req, res) => {
+  const result = await getMissionControlClient().getTask(req.params.id);
+  if (!result.ok || !result.data) {
+    res.status(result.status === 404 ? 404 : 502).json({ ...upstreamError(result.error, result.status), ...envelope(req) });
     return;
   }
-  
-  res.json({
-    success: true,
-    data: task,
-    timestamp: new Date(),
-    requestId: req.headers['x-request-id'] || 'unknown',
-  });
+
+  res.json({ success: true, data: result.data, source: 'mission-control', ...envelope(req) });
 });
 
-router.post('/', (req, res) => {
-  const { title, description, priority = 'medium', projectId } = req.body;
-  
-  if (!title) {
-    res.status(400).json({
-      success: false,
-      error: {
-        code: 'MISSING_TITLE',
-        message: 'Task title is required',
-      },
-      timestamp: new Date(),
-      requestId: req.headers['x-request-id'] || 'unknown',
-    });
-    return;
-  }
-  
-  const now = new Date();
-  const task: Task = {
-    id: `task_${Date.now()}`,
-    title,
-    description: description || '',
-    status: 'pending',
-    priority: priority as TaskPriority,
-    projectId,
-    createdAt: now,
-    updatedAt: now,
-    metadata: {
-      source: 'jarvis',
-      tags: [],
+// Writes: honestly gated. Creating fake local tasks would be placeholder
+// behavior (Art. IV); creating real MC tasks is owner-gated (Art. V).
+const writeGate = (req: Parameters<typeof envelope>[0], res: { status: (n: number) => { json: (b: unknown) => void } }) => {
+  res.status(501).json({
+    success: false,
+    error: {
+      code: 'WRITES_OWNER_GATED',
+      message:
+        'Task writes are not enabled: Kiaros→Mission Control task creation requires an ' +
+        'owner-approved phase routed through the Approval Engine (Constitution Art. V).',
     },
-  };
-  
-  tasks.set(task.id, task);
-  logger.info(`Task created: ${task.id} - ${title}`);
-  
-  res.status(201).json({
-    success: true,
-    data: task,
-    timestamp: new Date(),
-    requestId: req.headers['x-request-id'] || 'unknown',
+    ...envelope(req),
   });
-});
+};
 
-router.patch('/:id', (req, res) => {
-  const task = tasks.get(req.params.id);
-  
-  if (!task) {
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'TASK_NOT_FOUND',
-        message: `Task ${req.params.id} not found`,
-      },
-      timestamp: new Date(),
-      requestId: req.headers['x-request-id'] || 'unknown',
-    });
-    return;
-  }
-  
-  const { title, description, status, priority } = req.body;
-  
-  if (title !== undefined) task.title = title;
-  if (description !== undefined) task.description = description;
-  if (status !== undefined) task.status = status;
-  if (priority !== undefined) task.priority = priority;
-  
-  task.updatedAt = new Date();
-  
-  if (status === 'completed') {
-    task.completedAt = new Date();
-  }
-  
-  tasks.set(task.id, task);
-  logger.info(`Task updated: ${task.id}`);
-  
-  res.json({
-    success: true,
-    data: task,
-    timestamp: new Date(),
-    requestId: req.headers['x-request-id'] || 'unknown',
-  });
-});
-
-router.delete('/:id', (req, res) => {
-  const task = tasks.get(req.params.id);
-  
-  if (!task) {
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'TASK_NOT_FOUND',
-        message: `Task ${req.params.id} not found`,
-      },
-      timestamp: new Date(),
-      requestId: req.headers['x-request-id'] || 'unknown',
-    });
-    return;
-  }
-  
-  tasks.delete(req.params.id);
-  logger.info(`Task deleted: ${req.params.id}`);
-  
-  res.json({
-    success: true,
-    data: { deleted: true },
-    timestamp: new Date(),
-    requestId: req.headers['x-request-id'] || 'unknown',
-  });
-});
+router.post('/', (req, res) => writeGate(req, res));
+router.patch('/:id', (req, res) => writeGate(req, res));
+router.put('/:id', (req, res) => writeGate(req, res));
+router.delete('/:id', (req, res) => writeGate(req, res));
 
 export { router as tasksRouter };

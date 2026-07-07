@@ -1,25 +1,29 @@
 /**
  * Mode Route
- * Handle Jarvis UI mode changes
+ * Handle Kiaros UI mode changes — backed by the JarvisStateManager so the
+ * mode PERSISTS across Core restarts (STATE_MANAGEMENT gap closed).
  */
 
 import { Router } from 'express';
 import { logger } from '../../utils/logger.js';
 import { UI_MODES } from '../../../../shared/constants/index.js';
+import { getStateManager } from '../../services/stateManager.js';
+import type { JarvisMode } from '../../../../shared/types/index.js';
 
 const router = Router();
 
-// Valid modes
 const validModes = Object.values(UI_MODES);
 
-// Current mode
-let currentMode = UI_MODES.ORB;
+// Fallback only for the degenerate case where the state manager failed to
+// initialize (crash-proof init keeps the server up regardless).
+let fallbackMode: JarvisMode = UI_MODES.ORB;
 
 router.get('/', (req, res) => {
+  const manager = getStateManager();
   res.json({
     success: true,
     data: {
-      currentMode,
+      currentMode: manager ? manager.getMode() : fallbackMode,
       availableModes: validModes,
     },
     timestamp: new Date(),
@@ -29,7 +33,7 @@ router.get('/', (req, res) => {
 
 router.post('/set', (req, res) => {
   const { mode } = req.body;
-  
+
   if (!mode || !validModes.includes(mode)) {
     res.status(400).json({
       success: false,
@@ -42,13 +46,18 @@ router.post('/set', (req, res) => {
     });
     return;
   }
-  
-  currentMode = mode;
-  logger.info(`Mode changed to: ${mode}`);
-  
+
+  const manager = getStateManager();
+  if (manager) {
+    manager.setMode(mode); // emits mode:changed + persists
+  } else {
+    fallbackMode = mode;
+    logger.warn(`Mode set without state manager (not persisted): ${mode}`);
+  }
+
   res.json({
     success: true,
-    data: { mode: currentMode },
+    data: { mode },
     timestamp: new Date(),
     requestId: req.headers['x-request-id'] || 'unknown',
   });

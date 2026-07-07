@@ -109,8 +109,10 @@ export class MonitorService {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      
+      // Calibrated to the slowest healthy response (regression rule R10):
+      // Mission Control under load can exceed 5s and was flapping.
+      const timeout = setTimeout(() => controller.abort(), 12000);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },

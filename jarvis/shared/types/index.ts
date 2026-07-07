@@ -30,6 +30,10 @@ export interface JarvisConfig {
     hudMode: boolean;
     ambientMode: boolean;
   };
+  /** Optional Core API shared-secret auth (empty = open on localhost). */
+  security: {
+    coreToken: string;
+  };
   /** Conversation intelligence — provider-agnostic by mandate (Phase 5). */
   llm: {
     provider: 'auto' | 'anthropic' | 'openai-compatible' | 'none';

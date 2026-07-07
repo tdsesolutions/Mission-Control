@@ -5,6 +5,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { logger } from '../utils/logger.js';
+import { config } from '../config/index.js';
 import { EventBus } from './eventBus.js';
 import type { SystemEvent } from '../../../shared/types/index.js';
 
@@ -60,6 +61,17 @@ export class WebSocketManager {
   }
 
   private handleConnection(ws: WebSocket, req: any): void {
+    // Optional shared-secret (mirrors the HTTP middleware): when
+    // KIAROS_CORE_TOKEN is set, /ws requires ?token=<value>.
+    if (config.security.coreToken) {
+      const url = new URL(String(req?.url ?? '/ws'), 'http://localhost');
+      if (url.searchParams.get('token') !== config.security.coreToken) {
+        logger.warn('WebSocket connection rejected: bad or missing token');
+        ws.close(1008, 'unauthorized');
+        return;
+      }
+    }
+
     const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const clientInfo: ClientInfo = {

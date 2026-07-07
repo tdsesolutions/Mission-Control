@@ -22,9 +22,10 @@ import { memoryRouter } from './api/routes/memory.js';
 import { eventsRouter } from './api/routes/events.js';
 import { approvalRouter } from './api/routes/approval.js';
 import { getApprovalEngine } from './services/approval/ApprovalEngine.js';
-import { JarvisStateManager } from './services/stateManager.js';
+import { createAuthMiddleware } from './api/middleware/auth.js';
+import { JarvisStateManager, setStateManager } from './services/stateManager.js';
 import { MemoryService, getMemoryService } from './services/memoryService.js';
-import { MissionControlClient } from './services/missionControlClient.js';
+import { MissionControlClient, getMissionControlClient } from './services/missionControlClient.js';
 import { MonitorService, setMonitorService } from './services/monitorService.js';
 import { WebSocketManager } from './services/webSocketManager.js';
 import { EventBus } from './services/eventBus.js';
@@ -52,8 +53,9 @@ class JarvisCoreService {
     // Initialize services (WebSocketServer created in initialize())
     this.eventBus = new EventBus();
     this.stateManager = new JarvisStateManager(this.eventBus);
+    setStateManager(this.stateManager);
     this.memoryService = getMemoryService();
-    this.missionControlClient = new MissionControlClient();
+    this.missionControlClient = getMissionControlClient();
     this.monitorService = new MonitorService(this.eventBus);
     setMonitorService(this.monitorService);
     getApprovalEngine().setEventBus(this.eventBus);
@@ -142,8 +144,10 @@ class JarvisCoreService {
   }
 
   private setupRoutes(): void {
-    // API routes
+    // API routes — /health stays open; /api/v1/* honors the optional
+    // shared-secret (no-op when KIAROS_CORE_TOKEN is unset).
     this.app.use('/health', healthRouter);
+    this.app.use('/api/v1', createAuthMiddleware(config.security.coreToken));
     this.app.use('/api/v1/status', statusRouter);
     this.app.use('/api/v1/mode', modeRouter);
     this.app.use('/api/v1/conversation', conversationRouter);

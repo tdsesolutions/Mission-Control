@@ -37,6 +37,13 @@ export const config: JarvisConfig = {
     url: process.env.MISSION_CONTROL_URL || 'http://localhost:3002',
     apiKey: process.env.MISSION_CONTROL_API_KEY || '',
   },
+
+  // Optional shared-secret auth for the Core API (CURRENT_PHASE defect 5).
+  // Empty (default) = open on localhost, current behavior. When set, all
+  // /api/v1/* endpoints require it; /health stays open for monitors.
+  security: {
+    coreToken: process.env.KIAROS_CORE_TOKEN || '',
+  },
   
   openclaw: {
     gatewayUrl: process.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18789',

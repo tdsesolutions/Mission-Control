@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { JarvisMode, JarvisStatus } from '@shared/types/index.js';
+import { coreHeaders } from '../services/coreAuth';
 
 interface JarvisState {
   // State
@@ -35,7 +36,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     // Notify server of mode change
     fetch(`${JARVIS_CORE_URL}/api/v1/mode/set`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: coreHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ mode }),
     }).catch(() => {});
   },
@@ -79,6 +80,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
           const modeController = new AbortController();
           const modeTimeout = setTimeout(() => modeController.abort(), 3000);
           const modeResponse = await fetch(`${JARVIS_CORE_URL}/api/v1/mode`, {
+            headers: coreHeaders(),
             signal: modeController.signal,
           });
           clearTimeout(modeTimeout);
@@ -95,6 +97,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
           const convController = new AbortController();
           const convTimeout = setTimeout(() => convController.abort(), 3000);
           const convResponse = await fetch(`${JARVIS_CORE_URL}/api/v1/conversation`, {
+            headers: coreHeaders(),
             signal: convController.signal,
           });
           clearTimeout(convTimeout);
@@ -153,7 +156,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     try {
       const response = await fetch(`${JARVIS_CORE_URL}/api/v1/conversation/message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: coreHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ content, type: 'text' }),
         // LLM-backed replies can take tens of seconds (Phase 5); the Core
         // enforces its own provider timeout and degrades honestly.

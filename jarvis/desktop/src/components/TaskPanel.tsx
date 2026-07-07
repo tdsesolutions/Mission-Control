@@ -11,6 +11,7 @@ interface Task {
 export function TaskPanel() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [degraded, setDegraded] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -22,11 +23,18 @@ export function TaskPanel() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
-          setTasks(data.data.slice(0, 5)); // Show top 5 tasks
+          // Real Mission Control tasks via the Core read-through proxy
+          setTasks(data.data.slice(0, 5));
+          setDegraded(false);
+        } else if (data.error?.code === 'MISSION_CONTROL_UNAVAILABLE') {
+          // Honest degraded state: MC is unreachable — say so, don't
+          // pretend the queue is empty.
+          setTasks([]);
+          setDegraded(true);
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch tasks:', error);
+    } catch {
+      setDegraded(true);
     } finally {
       setLoading(false);
     }
@@ -70,6 +78,12 @@ export function TaskPanel() {
         {loading ? (
           <div className="flex items-center justify-center h-32 text-[var(--j-text-muted)]">
             Loading...
+          </div>
+        ) : degraded ? (
+          <div className="flex flex-col items-center justify-center h-32 text-[var(--j-text-muted)]">
+            <AlertCircle size={24} className="mb-2 opacity-50" />
+            <span className="text-sm">Mission Control unreachable</span>
+            <span className="text-xs opacity-70 mt-1">Tasks will appear when it recovers</span>
           </div>
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-[var(--j-text-muted)]">
