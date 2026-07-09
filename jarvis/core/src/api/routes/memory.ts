@@ -1,21 +1,22 @@
 /**
  * Memory Route
- * Handle Jarvis memory operations
+ * Handle Jarvis memory operations — backed by the shared persistent
+ * MemoryService (jarvis-memory.json), the same store the StateManager
+ * snapshots into. Writes and deletes persist to disk immediately so
+ * values survive Core restarts.
  */
 
 import { Router } from 'express';
 import { logger } from '../../utils/logger.js';
+import { getMemoryService } from '../../services/memoryService.js';
 
 const router = Router();
 
-// In-memory store (will be replaced with persistent memory service)
-const memoryStore: Map<string, unknown> = new Map();
-
 router.get('/:key', (req, res) => {
   const { key } = req.params;
-  const value = memoryStore.get(key);
-  
-  if (value === undefined) {
+  const memory = getMemoryService();
+
+  if (!memory.has(key)) {
     res.status(404).json({
       success: false,
       error: {
@@ -27,19 +28,19 @@ router.get('/:key', (req, res) => {
     });
     return;
   }
-  
+
   res.json({
     success: true,
-    data: { key, value },
+    data: { key, value: memory.get(key) },
     timestamp: new Date(),
     requestId: req.headers['x-request-id'] || 'unknown',
   });
 });
 
-router.post('/:key', (req, res) => {
+router.post('/:key', async (req, res) => {
   const { key } = req.params;
   const { value } = req.body;
-  
+
   if (value === undefined) {
     res.status(400).json({
       success: false,
@@ -52,10 +53,12 @@ router.post('/:key', (req, res) => {
     });
     return;
   }
-  
-  memoryStore.set(key, value);
+
+  const memory = getMemoryService();
+  memory.set(key, value);
+  await memory.saveMemory();
   logger.debug(`Memory set: ${key}`);
-  
+
   res.json({
     success: true,
     data: { key, value },
@@ -64,12 +67,14 @@ router.post('/:key', (req, res) => {
   });
 });
 
-router.delete('/:key', (req, res) => {
+router.delete('/:key', async (req, res) => {
   const { key } = req.params;
-  const existed = memoryStore.has(key);
-  
-  memoryStore.delete(key);
-  
+  const memory = getMemoryService();
+  const existed = memory.delete(key);
+  if (existed) {
+    await memory.saveMemory();
+  }
+
   res.json({
     success: true,
     data: { key, deleted: existed },
@@ -79,8 +84,8 @@ router.delete('/:key', (req, res) => {
 });
 
 router.get('/', (req, res) => {
-  const keys = Array.from(memoryStore.keys());
-  
+  const keys = getMemoryService().keys();
+
   res.json({
     success: true,
     data: {

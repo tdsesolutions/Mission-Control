@@ -21,6 +21,8 @@ import { projectsRouter } from './api/routes/projects.js';
 import { memoryRouter } from './api/routes/memory.js';
 import { eventsRouter } from './api/routes/events.js';
 import { approvalRouter } from './api/routes/approval.js';
+import { voiceRouter } from './api/routes/voice.js';
+import { DeepgramRelay } from './services/voice/DeepgramRelay.js';
 import { getApprovalEngine } from './services/approval/ApprovalEngine.js';
 import { createAuthMiddleware } from './api/middleware/auth.js';
 import { JarvisStateManager, setStateManager } from './services/stateManager.js';
@@ -28,7 +30,8 @@ import { MemoryService, getMemoryService } from './services/memoryService.js';
 import { MissionControlClient, getMissionControlClient } from './services/missionControlClient.js';
 import { MonitorService, setMonitorService } from './services/monitorService.js';
 import { WebSocketManager } from './services/webSocketManager.js';
-import { EventBus } from './services/eventBus.js';
+import { EventBus, setEventBus } from './services/eventBus.js';
+import { getCoreMetrics } from './services/coreMetrics.js';
 
 // Environment variables are loaded by config/index.ts (imported above) —
 // it must happen there because ES module imports are hoisted ahead of this
@@ -38,6 +41,8 @@ class JarvisCoreService {
   private app: express.Application;
   private server: ReturnType<typeof createServer>;
   private wss: WebSocketServer;
+  private voiceWss: WebSocketServer;
+  private deepgramRelay: DeepgramRelay;
   private stateManager: JarvisStateManager;
   private memoryService: MemoryService;
   private missionControlClient: MissionControlClient;
@@ -52,6 +57,7 @@ class JarvisCoreService {
     
     // Initialize services (WebSocketServer created in initialize())
     this.eventBus = new EventBus();
+    setEventBus(this.eventBus);
     this.stateManager = new JarvisStateManager(this.eventBus);
     setStateManager(this.stateManager);
     this.memoryService = getMemoryService();
@@ -61,6 +67,8 @@ class JarvisCoreService {
     getApprovalEngine().setEventBus(this.eventBus);
     this.wss = null as any;
     this.wsManager = null as any;
+    this.voiceWss = null as any;
+    this.deepgramRelay = null as any;
   }
 
   async initialize(): Promise<void> {
@@ -74,14 +82,41 @@ class JarvisCoreService {
     // Setup routes (must succeed for HTTP server to work)
     this.setupRoutes();
     
-    // Setup WebSocket server (non-fatal)
+    // Setup WebSocket servers (non-fatal). Two paths share one HTTP server,
+    // so upgrades are routed manually: /ws = EventBus broadcast (existing
+    // protocol, token check inside WebSocketManager), /ws/voice/stt =
+    // Deepgram audio relay (token check inside DeepgramRelay).
     try {
-      this.wss = new WebSocketServer({ server: this.server, path: '/ws' });
+      this.wss = new WebSocketServer({ noServer: true });
       this.wsManager = new WebSocketManager(this.wss, this.eventBus);
+      this.voiceWss = new WebSocketServer({ noServer: true });
+      this.deepgramRelay = new DeepgramRelay(this.voiceWss, {
+        apiKey: config.voice.deepgram.apiKey,
+        model: config.voice.deepgram.model,
+        coreToken: config.security.coreToken,
+      });
+      this.deepgramRelay.initialize();
+
+      this.server.on('upgrade', (request, socket, head) => {
+        const { pathname } = new URL(String(request.url ?? '/'), 'http://localhost');
+        if (pathname === '/ws') {
+          this.wss.handleUpgrade(request, socket, head, (ws) => {
+            this.wss.emit('connection', ws, request);
+          });
+        } else if (pathname === '/ws/voice/stt') {
+          this.voiceWss.handleUpgrade(request, socket, head, (ws) => {
+            this.voiceWss.emit('connection', ws, request);
+          });
+        } else {
+          socket.destroy();
+        }
+      });
     } catch (error) {
       logger.warn('WebSocket server failed to initialize:', error);
       this.wss = null as any;
       this.wsManager = null as any;
+      this.voiceWss = null as any;
+      this.deepgramRelay = null as any;
     }
     
     // Initialize services (non-fatal - each service has its own error handling)
@@ -136,8 +171,13 @@ class JarvisCoreService {
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     
-    // Request logging
+    // Request logging + real request metrics (CoreMetrics feeds the
+    // /api/v1/status metrics surface)
     this.app.use((req, res, next) => {
+      const startedAt = Date.now();
+      res.on('finish', () => {
+        getCoreMetrics().recordRequest(Date.now() - startedAt, res.statusCode);
+      });
       logger.debug(`${req.method} ${req.path}`);
       next();
     });
@@ -156,6 +196,7 @@ class JarvisCoreService {
     this.app.use('/api/v1/memory', memoryRouter);
     this.app.use('/api/v1/events', eventsRouter);
     this.app.use('/api/v1/approval', approvalRouter);
+    this.app.use('/api/v1/voice', voiceRouter);
 
     // 404 handler
     this.app.use((req, res) => {
@@ -257,6 +298,11 @@ class JarvisCoreService {
           logger.info('WebSocket server closed');
         });
       }
+      if (this.voiceWss) {
+        this.voiceWss.close(() => {
+          logger.info('Voice WebSocket server closed');
+        });
+      }
 
       // Shutdown services in reverse order (non-fatal)
       try {
@@ -278,6 +324,18 @@ class JarvisCoreService {
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
+
+    // A long-running local service must not die to a stray async failure
+    // (Node's default for unhandled rejections is process termination).
+    // Log loudly and keep serving; uncaught synchronous exceptions still
+    // get a graceful shutdown so state is persisted.
+    process.on('unhandledRejection', (reason) => {
+      logger.error('Unhandled promise rejection (service continues):', reason);
+    });
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught exception — shutting down gracefully:', error);
+      void shutdown('uncaughtException');
+    });
   }
 
   async start(): Promise<void> {

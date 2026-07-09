@@ -26,7 +26,8 @@ project's #1 documented architectural risk.
 | 4 | Kiaros state (mode/preferences) | Kiaros Core | `JarvisStateManager` → MemoryService snapshot (`state.snapshot`), saved on change | **Durable — mode survives restarts (verified 2026-07-07)** | IMPLEMENTED |
 | 5 | Kiaros memory file | Kiaros Core | `MemoryService` → `jarvis/core/memory/jarvis-memory.json` (shared instance via `getMemoryService()`) | Durable | IMPLEMENTED; carries conversation history (Phase 4) and the StateManager snapshot (2026-07-07) |
 | 6 | Kiaros conversations | Kiaros Core | Loaded/persisted through MemoryService (key `conversation.history`), cap 100, saved after each exchange | **Durable — survives Core restarts (verified Phase 4)** | IMPLEMENTED |
-| 7 | Kiaros tasks/projects views | Kiaros Core | READ-THROUGH PROXY of Mission Control — no local store exists at all | N/A — MC is the only store | IMPLEMENTED 2026-07-07; writes owner-gated (501) |
+| 7 | Kiaros tasks/projects views | Kiaros Core | READ-THROUGH PROXY of Mission Control — no local store exists at all | N/A — MC is the only store | IMPLEMENTED 2026-07-07; task CREATE via TaskDispatcher/Approval Engine (2026-07-09); update/delete 501 by design |
+| 7b | Pending owner-approval dispatch queue | Kiaros Core (TaskDispatcher) | MemoryService key `dispatch.pending`; resolved entries retained for audit, capped 200 (pending never dropped) | **Durable — survives Core restarts** | IMPLEMENTED 2026-07-09 |
 | 8 | Kiaros event history | Kiaros Core | EventBus ring buffer (1,000 events) | Lost on restart | IMPLEMENTED (by design) |
 | 9 | Desktop chat/connection | Kiaros Desktop | `jarvisStore` (Zustand) | Ephemeral (rehydrates from Core on load) | IMPLEMENTED |
 | 10 | Voice settings | Kiaros Desktop | localStorage via `VoiceSettingsManager` | Durable (browser) | IMPLEMENTED |

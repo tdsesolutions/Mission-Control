@@ -19,11 +19,19 @@ export interface JarvisConfig {
   missionControl: {
     url: string;
     apiKey: string;
+    /**
+     * MC agent name Kiaros-created tasks are assigned to. Per the
+     * Constitution (Art. II) Mission Control dispatches to the OpenClaw
+     * `main` agent only, so the default follows that rule. Empty string =
+     * create unassigned (lands in the MC inbox for manual routing).
+     */
+    assignee: string;
   };
   openclaw: {
     gatewayUrl: string;
   };
   features: {
+    faceMode: boolean;
     orbMode: boolean;
     sphereMode: boolean;
     waveMode: boolean;
@@ -48,6 +56,23 @@ export interface JarvisConfig {
       baseUrl: string;
       apiKey: string;
       model: string;
+    };
+  };
+  /**
+   * Cloud voice providers (optional). Keys live in jarvis/.env only and are
+   * used exclusively server-side — the Desktop reaches these providers
+   * through Core proxy endpoints and never sees a key. Empty key = provider
+   * unavailable; the Desktop falls back to the browser Web Speech API.
+   */
+  voice: {
+    deepgram: {
+      apiKey: string;
+      model: string;
+    };
+    elevenlabs: {
+      apiKey: string;
+      voiceId: string;
+      modelId: string;
     };
   };
 }
@@ -81,7 +106,7 @@ export interface JarvisState {
   memory: JarvisMemory;
 }
 
-export type JarvisMode = 'orb' | 'sphere' | 'wave' | 'hud' | 'ambient';
+export type JarvisMode = 'face' | 'orb' | 'sphere' | 'wave' | 'hud' | 'ambient';
 
 export type JarvisStatus = 'idle' | 'listening' | 'thinking' | 'responding' | 'executing' | 'error';
 
@@ -236,6 +261,32 @@ export interface DelegationRequest {
   priority: TaskPriority;
   requiresApproval: boolean;
   timestamp: Date;
+}
+
+/**
+ * A dispatch held for explicit owner approval (Approval Engine state
+ * `requires_owner_approval`). Persisted via MemoryService so it survives
+ * Core restarts; resolved entries are kept for the audit surface.
+ */
+export interface PendingDispatch {
+  id: string;
+  /** Natural-language statement of the requested work. */
+  intent: string;
+  /** Approval Engine decision that put this here (state, level, reason…). */
+  decision: {
+    id: string;
+    state: string;
+    level: number;
+    reason: string;
+  };
+  status: 'pending' | 'approved' | 'denied';
+  createdAt: string;
+  resolvedAt?: string;
+  /** MC task id once an approved dispatch has been created upstream. */
+  taskId?: string;
+  /** Honest failure detail if the post-approval MC create failed. */
+  lastError?: string;
+  source: string;
 }
 
 // ============================================================================

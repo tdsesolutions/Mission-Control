@@ -16,7 +16,7 @@ const validModes = Object.values(UI_MODES);
 
 // Fallback only for the degenerate case where the state manager failed to
 // initialize (crash-proof init keeps the server up regardless).
-let fallbackMode: JarvisMode = UI_MODES.ORB;
+let fallbackMode: JarvisMode = UI_MODES.FACE;
 
 router.get('/', (req, res) => {
   const manager = getStateManager();

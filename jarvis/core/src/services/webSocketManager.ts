@@ -14,13 +14,18 @@ interface ClientInfo {
   id: string;
   connectedAt: Date;
   subscriptions: string[];
+  /** Liveness flag for the protocol-level ping sweep (dead-socket reaping). */
+  alive: boolean;
 }
+
+const LIVENESS_SWEEP_MS = 30_000;
 
 export class WebSocketManager {
   private wss: WebSocketServer;
   private eventBus: EventBus;
   private clients: Map<string, ClientInfo> = new Map();
   private initialized = false;
+  private livenessTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(wss: WebSocketServer, eventBus: EventBus) {
     this.wss = wss;
@@ -44,12 +49,32 @@ export class WebSocketManager {
       this.broadcastEvent(event);
     });
 
+    // Half-open TCP connections never fire 'close' on their own — sweep
+    // with protocol pings and terminate anything that missed a pong.
+    this.livenessTimer = setInterval(() => {
+      for (const [clientId, client] of this.clients) {
+        if (!client.alive) {
+          logger.info(`Reaping unresponsive WebSocket client: ${clientId}`);
+          client.ws.terminate();
+          this.clients.delete(clientId);
+          continue;
+        }
+        client.alive = false;
+        try { client.ws.ping(); } catch { /* close event will clean up */ }
+      }
+    }, LIVENESS_SWEEP_MS);
+
     this.initialized = true;
     logger.info('WebSocket Manager initialized');
   }
 
   async shutdown(): Promise<void> {
     logger.info('Shutting down WebSocket Manager...');
+
+    if (this.livenessTimer) {
+      clearInterval(this.livenessTimer);
+      this.livenessTimer = null;
+    }
 
     // Close all client connections
     for (const client of this.clients.values()) {
@@ -79,10 +104,15 @@ export class WebSocketManager {
       id: clientId,
       connectedAt: new Date(),
       subscriptions: [],
+      alive: true,
     };
 
     this.clients.set(clientId, clientInfo);
     logger.info(`WebSocket client connected: ${clientId}`);
+
+    ws.on('pong', () => {
+      clientInfo.alive = true;
+    });
 
     // Send welcome message
     this.sendToClient(clientId, {

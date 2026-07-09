@@ -9,6 +9,12 @@ interface ServiceStatus {
   latency?: number;
 }
 
+/** Real process metrics reported by Kiaros Core (units per CoreMetrics). */
+interface CoreMetrics {
+  cpuUsage: number;
+  memoryUsage: number;
+}
+
 const JARVIS_CORE_URL = 'http://localhost:3010';
 
 export function ServicePanel() {
@@ -17,6 +23,7 @@ export function ServicePanel() {
     { name: 'Mission Control', status: 'offline', port: 3002 },
     { name: 'Kiaros Core', status: 'offline', port: 3010 },
   ]);
+  const [coreMetrics, setCoreMetrics] = useState<CoreMetrics | null>(null);
 
   useEffect(() => {
     // Ecosystem health comes from Kiaros Core's MonitorService only. The
@@ -45,8 +52,13 @@ export function ServicePanel() {
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = await response.json();
-        const monitored: Array<{ name: string; status: string; port: number }> =
+        const monitored: Array<{ name: string; status: string; port: number; metrics?: CoreMetrics }> =
           Array.isArray(payload?.data) ? payload.data : [];
+
+        // Real process metrics ride on the jarvis-core entry; no reading
+        // means no numbers — never fabricate.
+        const coreEntry = monitored.find((m) => m.name === 'jarvis-core');
+        setCoreMetrics(coreEntry?.metrics ?? null);
 
         setServices((current) =>
           current.map((service) => {
@@ -65,6 +77,7 @@ export function ServicePanel() {
         setServices((current) =>
           current.map((service) => ({ ...service, status: 'offline' as const, latency: undefined }))
         );
+        setCoreMetrics(null);
       }
     };
 
@@ -110,8 +123,16 @@ export function ServicePanel() {
 
         <div className="mt-6 pt-4 border-t border-[var(--j-bg-panel-border)]">
           <div className="grid grid-cols-2 gap-3">
-            <MetricCard icon={<Activity size={14} />} label="CPU" value="12%" />
-            <MetricCard icon={<Cpu size={14} />} label="Memory" value="456MB" />
+            <MetricCard
+              icon={<Activity size={14} />}
+              label="Core CPU"
+              value={coreMetrics ? `${coreMetrics.cpuUsage}%` : '—'}
+            />
+            <MetricCard
+              icon={<Cpu size={14} />}
+              label="Core Memory"
+              value={coreMetrics ? `${coreMetrics.memoryUsage}MB` : '—'}
+            />
           </div>
         </div>
       </div>

@@ -2,11 +2,13 @@
  * Mission Control Client
  * The ONLY sanctioned Kiaros → Mission Control interface (COMPONENT_OWNERSHIP §2).
  *
- * READ-ONLY in effect: health + task/project/agent reads. Write methods are
- * intentionally ABSENT — Kiaros→MC writes are constitutionally gated on a
- * future owner-approved phase that routes through the Approval Engine
- * (PROJECT_CONSTITUTION Art. V). Mission Control remains the single system
- * of record; Kiaros reads through, never mirrors (STATE_MANAGEMENT §3).
+ * Reads: health + task/project/agent reads + knowledge search.
+ * Writes: task creation ONLY (owner-approved 2026-07-09), and the sole
+ * caller is the TaskDispatcher, which obtains an Approval Engine decision
+ * first — calling createTask from anywhere else bypasses the engine and is
+ * a FORBIDDEN change class (PROJECT_CONSTITUTION Art. V). Mission Control
+ * remains the single system of record; Kiaros reads through, never mirrors
+ * (STATE_MANAGEMENT §3).
  */
 
 import { logger } from '../utils/logger.js';
@@ -66,9 +68,9 @@ export interface McTaskRow {
   project_id?: number | null;
   project_name?: string | null;
   assigned_to?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  completed_at?: string | null;
+  created_at?: string | number;
+  updated_at?: string | number;
+  completed_at?: string | number | null;
 }
 
 export interface McProjectRow {
@@ -76,8 +78,22 @@ export interface McProjectRow {
   name?: string;
   description?: string | null;
   status?: string;
-  created_at?: string;
-  updated_at?: string;
+  created_at?: string | number;
+  updated_at?: string | number;
+}
+
+/**
+ * MC timestamps arrive as ISO strings from some endpoints and unix SECONDS
+ * from others (SQLite integers). `new Date(seconds)` would land in 1970 —
+ * treat numbers below ~2001-09 in ms terms as seconds.
+ */
+export function toMcDate(value: string | number | null | undefined): Date {
+  if (value == null) return new Date();
+  if (typeof value === 'number') {
+    return new Date(value < 1_000_000_000_000 ? value * 1000 : value);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
 export function mapMcTask(row: McTaskRow): Task {
@@ -90,9 +106,9 @@ export function mapMcTask(row: McTaskRow): Task {
     status: STATUS_MAP[rawStatus] ?? 'pending',
     priority: PRIORITY_MAP[rawPriority] ?? 'medium',
     projectId: row.project_id != null ? String(row.project_id) : undefined,
-    createdAt: new Date(row.created_at ?? Date.now()),
-    updatedAt: new Date(row.updated_at ?? row.created_at ?? Date.now()),
-    completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+    createdAt: toMcDate(row.created_at),
+    updatedAt: toMcDate(row.updated_at ?? row.created_at),
+    completedAt: row.completed_at ? toMcDate(row.completed_at) : undefined,
     assignedTo: row.assigned_to ?? undefined,
     metadata: {
       source: 'mission_control',
@@ -100,6 +116,23 @@ export function mapMcTask(row: McTaskRow): Task {
       tags: [],
     },
   };
+}
+
+export interface McKnowledgeHit {
+  path: string;
+  title: string;
+  snippet: string;
+}
+
+/** Map MC memory-search results; strips FTS highlight markup. */
+export function mapKnowledgeHits(data: {
+  results?: Array<{ path?: string; title?: string; snippet?: string }>;
+}): McKnowledgeHit[] {
+  return (data.results ?? []).slice(0, 10).map((row) => ({
+    path: String(row.path ?? ''),
+    title: String(row.title ?? ''),
+    snippet: String(row.snippet ?? '').replace(/<\/?mark>/g, ''),
+  }));
 }
 
 const PROJECT_STATUS = new Set(['active', 'paused', 'completed', 'archived']);
@@ -112,8 +145,8 @@ export function mapMcProject(row: McProjectRow): Project {
     description: row.description ?? '',
     status: (PROJECT_STATUS.has(rawStatus) ? rawStatus : 'active') as Project['status'],
     path: '',
-    createdAt: new Date(row.created_at ?? Date.now()),
-    updatedAt: new Date(row.updated_at ?? row.created_at ?? Date.now()),
+    createdAt: toMcDate(row.created_at),
+    updatedAt: toMcDate(row.updated_at ?? row.created_at),
     tasks: [],
     metrics: { totalTasks: 0, completedTasks: 0, blockedTasks: 0, progressPercentage: 0 },
   };
@@ -200,6 +233,45 @@ export class MissionControlClient {
     }
   }
 
+  /** Timeboxed authenticated POST. Never throws; failures are data (Art. IV honesty). */
+  private async rawPost<T>(endpoint: string, body: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<McReadResult<T>> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (this.config.apiKey) headers['x-api-key'] = this.config.apiKey;
+
+      const response = await fetch(`${this.config.url}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const responseBody = await response.text().catch(() => '');
+        return {
+          ok: false,
+          status: response.status,
+          error: `Mission Control returned HTTP ${response.status}${responseBody ? `: ${responseBody.slice(0, 120)}` : ''}`,
+        };
+      }
+
+      return { ok: true, status: response.status, data: (await response.json()) as T };
+    } catch (error) {
+      const message = error instanceof Error && error.name === 'AbortError'
+        ? `Mission Control did not respond within ${timeoutMs}ms`
+        : `Mission Control unreachable: ${error instanceof Error ? error.message : String(error)}`;
+      return { ok: false, error: message };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   // ---- Sanctioned reads (MISSION_CONTROL_ARCHITECTURE §5) ----
 
   async listTasks(params?: { status?: string; limit?: number }): Promise<McReadResult<{ tasks: Task[]; total: number }>> {
@@ -231,6 +303,56 @@ export class MissionControlClient {
     const result = await this.rawGet<{ projects: McProjectRow[] }>('/api/projects');
     if (!result.ok || !result.data) return { ok: false, error: result.error, status: result.status };
     return { ok: true, data: (result.data.projects ?? []).map(mapMcProject) };
+  }
+
+  /**
+   * Knowledge Vault search (READ-ONLY) — MC's FTS5 memory search, which the
+   * owner has pointed at the Obsidian vault (OPENCLAW_MEMORY_DIR). Short
+   * timeout: this rides the conversation path and must never stall a reply.
+   */
+  async searchKnowledge(query: string, limit = 3): Promise<McReadResult<McKnowledgeHit[]>> {
+    const search = new URLSearchParams({ q: query, limit: String(limit) });
+    const result = await this.rawGet<{ results?: Array<{ path?: string; title?: string; snippet?: string }> }>(
+      `/api/memory/search?${search.toString()}`,
+      2500
+    );
+    if (!result.ok || !result.data) return { ok: false, error: result.error, status: result.status };
+    return { ok: true, data: mapKnowledgeHits(result.data) };
+  }
+
+  // ---- Sanctioned write: task creation (owner-approved 2026-07-09) ----
+
+  /**
+   * Create a task in Mission Control. RESTRICTED CALLER: TaskDispatcher
+   * only, which routes every request through the Approval Engine first
+   * (Constitution Art. V — bypassing the engine is FORBIDDEN).
+   */
+  async createTask(input: {
+    title: string;
+    description: string;
+    priority?: TaskPriority;
+    assignedTo?: string;
+    tags?: string[];
+    metadata?: Record<string, unknown>;
+  }): Promise<McReadResult<Task>> {
+    const payload: Record<string, unknown> = {
+      title: input.title,
+      description: input.description,
+      priority: input.priority ?? 'medium',
+      created_by: 'kiaros',
+      tags: input.tags ?? ['kiaros'],
+      metadata: input.metadata ?? {},
+    };
+    if (input.assignedTo) payload.assigned_to = input.assignedTo;
+
+    const result = await this.rawPost<{ task?: McTaskRow } | McTaskRow>('/api/tasks', payload);
+    if (!result.ok || !result.data) return { ok: false, error: result.error, status: result.status };
+
+    const row = (result.data as { task?: McTaskRow }).task ?? (result.data as McTaskRow);
+    if (!row || row.id === undefined) {
+      return { ok: false, status: result.status, error: 'Mission Control accepted the request but returned no task' };
+    }
+    return { ok: true, status: result.status, data: mapMcTask(row) };
   }
 
   async listAgents(): Promise<McReadResult<unknown[]>> {

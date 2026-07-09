@@ -1,17 +1,19 @@
 /**
- * Tasks Route — READ-THROUGH PROXY of Mission Control.
+ * Tasks Route — READ-THROUGH PROXY of Mission Control, plus the sanctioned
+ * CREATE path (owner-approved 2026-07-09).
  *
  * Mission Control's SQLite is the ONLY durable task store; Kiaros never
  * mirrors it and never persists its own task state (STATE_MANAGEMENT §1/§3).
- * The former in-memory stub store (placeholder behavior) is gone.
  *
- * Writes are constitutionally gated: no Kiaros→MC task creation until an
- * owner-approved phase routes it through the Approval Engine
- * (PROJECT_CONSTITUTION Art. V). Write endpoints answer honestly.
+ * POST routes through the TaskDispatcher, which consults the Approval
+ * Engine on EVERY request (Constitution Art. V — bypassing it is
+ * FORBIDDEN). Update/delete remain deliberately gated: Mission Control's
+ * own UI owns task lifecycle edits.
  */
 
 import { Router } from 'express';
 import { getMissionControlClient } from '../../services/missionControlClient.js';
+import { getTaskDispatcher } from '../../services/dispatch/TaskDispatcher.js';
 
 const router = Router();
 
@@ -61,22 +63,70 @@ router.get('/:id', async (req, res) => {
   res.json({ success: true, data: result.data, source: 'mission-control', ...envelope(req) });
 });
 
-// Writes: honestly gated. Creating fake local tasks would be placeholder
-// behavior (Art. IV); creating real MC tasks is owner-gated (Art. V).
+// Create — the sanctioned write path (owner-approved 2026-07-09). Every
+// request is classified by the Approval Engine inside the TaskDispatcher;
+// the HTTP status mirrors the decision honestly.
+router.post('/', async (req, res) => {
+  const { intent, title, description } = req.body ?? {};
+  const statement = typeof intent === 'string' && intent.trim()
+    ? intent.trim()
+    : [title, description].filter((part) => typeof part === 'string' && part.trim()).join(' — ').trim();
+
+  if (!statement) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'MISSING_INTENT', message: 'Provide `intent` (or `title`/`description`) describing the requested work.' },
+      ...envelope(req),
+    });
+    return;
+  }
+
+  const result = await getTaskDispatcher().requestDispatch({
+    intent: statement,
+    title: typeof title === 'string' ? title : undefined,
+    source: 'api',
+  });
+
+  switch (result.outcome) {
+    case 'dispatched':
+      res.status(201).json({ success: true, data: { task: result.task, decision: result.decision }, source: 'mission-control', ...envelope(req) });
+      return;
+    case 'pending_owner_approval':
+      res.status(202).json({
+        success: true,
+        data: { pending: result.pending, decision: result.decision },
+        message: 'Held for owner approval — resolve via /api/v1/approval/pending.',
+        ...envelope(req),
+      });
+      return;
+    case 'clarification_needed':
+      res.status(422).json({ success: false, error: { code: 'CLARIFICATION_NEEDED', message: result.decision.reason }, data: { decision: result.decision }, ...envelope(req) });
+      return;
+    case 'rejected':
+      res.status(403).json({ success: false, error: { code: 'REJECTED_BY_APPROVAL_ENGINE', message: result.decision.reason }, data: { decision: result.decision }, ...envelope(req) });
+      return;
+    case 'dispatch_failed':
+      res.status(502).json({ success: false, error: { code: 'MISSION_CONTROL_UNAVAILABLE', message: result.error }, data: { decision: result.decision }, ...envelope(req) });
+      return;
+  }
+});
+
+// Update/delete: deliberately gated by design (not a stub). Task lifecycle
+// edits belong to Mission Control's own UI — Kiaros creates work, it does
+// not rewrite the system of record.
 const writeGate = (req: Parameters<typeof envelope>[0], res: { status: (n: number) => { json: (b: unknown) => void } }) => {
   res.status(501).json({
     success: false,
     error: {
-      code: 'WRITES_OWNER_GATED',
+      code: 'LIFECYCLE_EDITS_NOT_SUPPORTED',
       message:
-        'Task writes are not enabled: Kiaros→Mission Control task creation requires an ' +
-        'owner-approved phase routed through the Approval Engine (Constitution Art. V).',
+        'Kiaros does not modify or delete Mission Control tasks — task creation is supported ' +
+        '(POST, via the Approval Engine); lifecycle edits are owned by Mission Control.',
     },
     ...envelope(req),
   });
 };
 
-router.post('/', (req, res) => writeGate(req, res));
 router.patch('/:id', (req, res) => writeGate(req, res));
 router.put('/:id', (req, res) => writeGate(req, res));
 router.delete('/:id', (req, res) => writeGate(req, res));

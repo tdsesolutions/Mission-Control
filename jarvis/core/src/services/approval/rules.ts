@@ -12,7 +12,7 @@ import type { ApprovalLevel } from './types.js';
 /** Dangerous patterns — immediate rejection (B8 auto-block list). */
 export const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; detail: string }> = [
   // Destructive
-  { pattern: /delete\s+(all|everything|the\s+)?(repos?itor(y|ies)|databases?)/i, detail: 'destroy repository/database' },
+  { pattern: /delete\s+((all|everything|the)\s+)?(repos?itor(y|ies)|databases?)/i, detail: 'destroy repository/database' },
   { pattern: /drop\s+(database|table|schema)/i, detail: 'drop database object' },
   { pattern: /factory\s+reset/i, detail: 'factory reset' },
   { pattern: /rm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)[a-z]*\s+[/~]/i, detail: 'recursive force delete from root/home' },

@@ -103,8 +103,11 @@ Indirectly only:
 - `MonitorService` polls `http://localhost:18789/health` every 30s for the
   ServicePanel display. This is read-only observation, not control, and is
   the **only** Kiaros→gateway contact permitted.
-- Everything else (sessions, agents, activity) is intended to be read through
-  Mission Control's API — SPECIFIED in Phase 9, not yet implemented.
+- Everything else routes through Mission Control's API: task/project/agent
+  READS are IMPLEMENTED (2026-07-07, read-through proxies), and task
+  CREATION is IMPLEMENTED (2026-07-09) via the TaskDispatcher/Approval
+  Engine — Mission Control, not Kiaros, then dispatches to the OpenClaw
+  `main` agent. Kiaros still never contacts the gateway for execution.
 
 ---
 
@@ -113,3 +116,4 @@ Indirectly only:
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-07-04 | Initial version (Phase 2 deliverable) |
+| 1.1 | 2026-07-09 | §8 updated: MC reads implemented (07-07) and task creation implemented (07-09, via Approval Engine); gateway no-contact rule unchanged |

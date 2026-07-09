@@ -1,10 +1,11 @@
 # Voice Architecture
 
 **Project:** Kiaros / Mission Control / OpenClaw
-**Version:** 1.0
-**Date:** 2026-07-04
+**Version:** 2.0
+**Date:** 2026-07-09
 **Status:** Reference + target definition
-**Source:** Phase 1 Architecture Audit (2026-07-04)
+**Source:** Phase 1 Architecture Audit (2026-07-04); v2.0 owner-directed
+cloud-provider upgrade (2026-07-09)
 
 ---
 
@@ -21,22 +22,42 @@ Owner speaks
       → speech synthesis → Kiaros speaks
 ```
 
-## 2. Design Decision of Record
+## 2. Design Decision of Record (amended v2.0, owner-directed 2026-07-09)
 
-Voice is implemented **inside the Desktop browser app** using the Web Speech
-API. The originally-planned standalone Voice Service on port 3013
-(AI_SERVICE_PORT_REGISTRY.md) was **not built** and is superseded for now.
-Port 3013 remains reserved in case a server-side voice engine (local STT/TTS
-models, wake word, streaming) is approved in a future phase.
+Voice runs **inside the Desktop browser app** behind a two-engine
+abstraction:
 
-Consequences of this decision:
-- **Privacy:** raw audio never leaves the browser; only recognized text is
-  sent, and only to `localhost:3010`.
-- **Constraint:** recognition quality, voice options, and continuous-listening
-  behavior are limited to what the browser (effectively Chrome's
-  `webkitSpeechRecognition`) provides.
-- **Constraint:** no wake word, no barge-in, no server-side audio processing
-  until a dedicated phase changes this decision.
+- **Browser engines (default, always present):** Web Speech API recognition
+  + synthesis. Fully local; raw audio never leaves the browser.
+- **Cloud engines (opt-in, owner-configured):** Deepgram STT and ElevenLabs
+  TTS, reached **exclusively through Kiaros Core proxy endpoints** —
+  `ws://localhost:3010/ws/voice/stt` (audio relay) and
+  `POST http://localhost:3010/api/v1/voice/tts` (audio synthesis).
+  `GET /api/v1/voice/config` reports capability booleans only. API keys
+  live in `jarvis/.env` (`DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY`,
+  `ELEVENLABS_VOICE_ID` — default voice `bIHbv24MWmeRgasZH58o`) and never
+  reach the browser.
+
+**Privacy invariant (amended):** with no keys configured, behavior is
+unchanged from v1.0 — audio never leaves the browser. Configuring a cloud
+key is the owner's explicit opt-in for audio (STT) or reply text (TTS) to
+reach that provider, via Core. The Desktop still never contacts any
+non-localhost host itself.
+
+**Fallback invariant (new):** any cloud engine failure degrades to the
+browser engine — automatically, per pass, surfaced honestly in the UI
+("fallback" tag; degraded for 60s before retry). Kiaros is never mute and
+never fakes a provider.
+
+The originally-planned standalone Voice Service on port 3013
+(AI_SERVICE_PORT_REGISTRY.md) was **not built**; the Core proxy fills that
+role inside port 3010. Port 3013 remains reserved for local STT/TTS models
+or wake-word processing if approved later.
+
+Remaining constraints:
+- No wake word; push-to-talk + bounded hands-free conversation mode only.
+- Recognition language is a setting (default `en-US`), applied to both
+  engine families.
 
 ## 3. Current Implementation (as of 2026-07-04)
 
@@ -49,10 +70,12 @@ CURRENT_PHASE.md).
 
 | Component | Responsibility |
 |---|---|
-| `VoiceManager` | Orchestrator; owns the voice state machine and callback wiring |
-| `SpeechRecognitionService` | Web Speech recognition wrapper; interim results; max 3 auto-restart attempts; lazy init |
-| `SpeechSynthesisService` | Web Speech TTS wrapper; rate/pitch/volume/voice selection |
-| `VoiceSettingsManager` | Settings persistence (localStorage): enabled, muted, autoSpeak, rate, pitch, volume, voiceURI |
+| `VoiceManager` | Engine selection facade (browser vs cloud, per owner preference + capability + degradation); settings-applied speech; NO loop state |
+| `SpeechRecognitionService` | Web Speech recognition wrapper (browser STT engine); interim results; language-configurable; lazy init |
+| `SpeechSynthesisService` | Web Speech TTS wrapper (browser TTS engine); rate/pitch/volume/voice selection |
+| `DeepgramSttEngine` | Cloud STT engine: mic → MediaRecorder → Core `/ws/voice/stt` relay → Deepgram; same one-pass callback contract as the browser engine (v2.0) |
+| `ElevenLabsTtsEngine` | Cloud TTS engine: text → Core `/api/v1/voice/tts` → ElevenLabs audio → `HTMLAudioElement`; exactly-once `onDone`, playback watchdog (v2.0) |
+| `VoiceSettingsManager` | Settings persistence (localStorage): enabled, muted, autoSpeak, rate, pitch, volume, voiceURI, sttProvider, ttsProvider, language |
 | `voiceStore` (Zustand) | UI-facing state: permission tracking (`navigator.permissions` + `getUserMedia` fallback), listening/speaking flags, transcript, error surface |
 | `VoiceButton` / `VoiceStatusIndicator` / `VoiceSettingsPanel` | UI, **lazy-loaded with `.catch()` fallbacks** so voice failures can never break text chat |
 
@@ -113,12 +136,17 @@ restarts. See STATE_MANAGEMENT.md §2.
 
 ## 5. What Voice Must Never Do
 
-- Send audio (or transcripts) to any non-localhost destination.
+- Send audio (or transcripts) to any non-localhost destination **from the
+  browser**. Cloud providers are reachable only through Kiaros Core's proxy,
+  only when the owner has configured a key, and keys never reach the browser.
 - Talk to Mission Control or the OpenClaw Gateway directly — voice is a
   Desktop input modality; everything routes through Kiaros Core.
-- Trigger task execution while the Approval Engine is unimplemented
-  (Constitution Art. V). A spoken "create a task" may only produce the same
-  canned/conversational handling that typed text gets today.
+- Trigger execution outside the sanctioned dispatch path. Since 2026-07-09
+  a spoken action request gets exactly the same handling as typed text:
+  ConversationManager → TaskDispatcher → Approval Engine decision →
+  auto-dispatch (levels 0–1) / owner-approval queue (levels 2–3) /
+  rejection. Voice has no separate execution powers and never bypasses
+  the engine (Constitution v1.3 Art. V).
 - Bypass or duplicate the text-chat conversation path.
 - Break text chat when voice fails — the lazy-load isolation pattern is a
   deliberate invariant, not an accident.
@@ -129,15 +157,15 @@ Gap analysis between today and the Article-I goal, for future phase planning:
 
 | Capability | Today | Needed for natural conversation |
 |---|---|---|
-| Speech → text | Push-to-talk, single utterance, browser STT | Continuous listening or wake word; better STT if browser quality insufficient |
+| Speech → text | Push-to-talk + bounded hands-free; browser STT default, **Deepgram on key (v2.0)** | Continuous listening or wake word |
 | Understanding | ✅ LLM-backed since Phase 5 (model-agnostic provider; local Ollama today, Anthropic on key) | — |
 | Memory | Conversation history persists via MemoryService (Phase 4); working context still resets | Context memory wired into the pipeline |
-| Text → speech | Browser TTS, configurable voice | Possibly higher-quality local TTS (would justify building port-3013 service) |
-| Acting on speech | Nothing reaches Mission Control | Core → MC task creation, gated by an implemented Approval Engine |
+| Text → speech | Browser TTS default, **ElevenLabs on key (v2.0, voice `bIHbv24MWmeRgasZH58o`)** | Streaming TTS for lower latency |
+| Acting on speech | ✅ IMPLEMENTED 2026-07-09: spoken action requests dispatch through TaskDispatcher → Approval Engine → real MC task (or owner-approval hold) | — |
 
-Ordering constraint from the Constitution: **LLM/conversation quality and
-Approval Engine come before autonomous action**, regardless of how good the
-voice loop gets.
+The Constitution's ordering constraint (LLM quality and Approval Engine
+before autonomous action) was satisfied: both preceded the 2026-07-09
+dispatch wiring.
 
 ---
 
@@ -146,3 +174,5 @@ voice loop gets.
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-07-04 | Initial version (Phase 2 deliverable) |
+| 2.0 | 2026-07-09 | Owner-directed cloud providers: Deepgram STT + ElevenLabs TTS via Core proxy (keys server-side only); privacy invariant amended to opt-in; fallback invariant added; language setting; provider selection UI |
+| 2.1 | 2026-07-09 | PSE mission: §5/§6 updated — spoken action requests now dispatch through the TaskDispatcher/Approval Engine identically to typed text (no separate voice execution powers) |

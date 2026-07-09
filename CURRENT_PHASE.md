@@ -1,7 +1,7 @@
 # Current Phase
 
 **Project:** Kiaros / Mission Control / OpenClaw
-**Last Updated:** 2026-07-04
+**Last Updated:** 2026-07-09
 **Authority:** This file is the single source of truth for project status
 (PROJECT_CONSTITUTION.md Art. VI). If any other document or conversation
 disagrees with this file, this file wins.
@@ -12,10 +12,10 @@ disagrees with this file, this file wins.
 
 | Field | Value |
 |---|---|
-| **Governing directive** | **PROJECT COMPLETION (2026-07-06):** phase workflow discontinued; the governing documents are the specification; work continues until every requirement is implemented and verified |
-| **Status** | ✅ **ALL IMPLEMENTABLE REQUIREMENTS COMPLETE (2026-07-07)** — see the Final Project Completion Report. Remaining items are owner-gated by the Constitution itself (list below) |
-| **System state** | Kiaros COMPLETE: voice loop, model-agnostic LLM, persistence, Approval Engine, MC read integration, honest degraded modes, launcher tooling — all verified |
-| **Open defects** | None. (Defects 1–8 all closed; see history below) |
+| **Governing directive** | **PROFESSIONAL SOFTWARE ENGINEER MISSION (2026-07-09, second directive):** owner ordered the system completed as a standalone engineer-from-a-single-request — full audit, MC write path through the Approval Engine, owner-approval workflow, all production blockers resolved |
+| **Status** | ✅ **PSE MISSION COMPLETE (2026-07-09)** — the delegation chain is closed end-to-end: owner request (voice/text) → Approval Engine decision → real Mission Control task (verified live, task created + owner-approve flow exercised) → MC dispatch to OpenClaw `main`. Constitution v1.3. All audit findings fixed |
+| **System state** | Kiaros COMPLETE as specified: voice loop (browser + cloud engines w/ honest fallback), model-agnostic LLM, Knowledge Vault context, persistence, Approval Engine WIRED (TaskDispatcher), MC read integration + sanctioned task creation, owner-approval queue (restart-safe) + Desktop panel, WS real-time channel (task/approval push), real process metrics everywhere (HUD fabricated data removed), turquoise/purple executive interface |
+| **Open defects** | None. (2026-07-09 PSE mission additionally fixed: approval-rules gap "delete all repositories" not rejected; MC unix-seconds timestamps mapped to 1970; LLM hallucinated action claims on non-dispatched requests; TTS client-abort upstream leak; unbounded Deepgram pre-open buffer; WS dead-socket reaping; missing global unhandledRejection handlers; Desktop double-initialization; ignored WS events) |
 
 ## Phase Numbering — Two Eras
 
@@ -89,9 +89,12 @@ To avoid confusion, phases are recorded in two eras:
 - ~~LLM-backed conversation in Kiaros Core~~ ✅ Phase 5 (model-agnostic)
 - ~~Conversation memory persistence~~ ✅ Phase 4 (StateManager persistence still TODO)
 - ~~Approval Engine implementation~~ ✅ Phase 6 (decision authority; wiring later)
-- Kiaros ↔ Mission Control integration (read first, then writes gated
-  through the Approval Engine + owner-approval workflow)
-- Core API authentication; streaming replies; Anthropic prompt caching
+- ~~Kiaros ↔ Mission Control integration (read first, then writes gated
+  through the Approval Engine + owner-approval workflow)~~ ✅ 2026-07-09
+  (PSE mission: task creation via TaskDispatcher; update/delete stays out
+  of scope by design)
+- ~~Core API authentication~~ ✅ 2026-07-07 (optional token); streaming
+  replies; Anthropic prompt caching
 - Later eras (from B-roadmap): mobile, computer control, browser automation
 - Explicitly out of scope forever without Constitution amendment:
   Telegram↔Kiaros bridging (Telegram is a Claw backup path only)
@@ -111,9 +114,9 @@ To avoid confusion, phases are recorded in two eras:
 4. **"Nothing connected to Claw"?** If that remark is a standing order,
    say so: Kiaros's read-only gateway health ping and MC's built-in gateway
    link would be disabled/reconfigured under a C3 change with your approval.
-5. **MC write integration** (Kiaros creating tasks through the Approval
-   Engine + an owner-approval workflow): the one remaining SPECIFIED
-   capability; requires your explicit phase approval (Art. V).
+5. ~~**MC write integration**~~ ✅ RESOLVED 2026-07-09 — the owner's PSE
+   directive authorized it; implemented as TaskDispatcher through the
+   Approval Engine with the owner-approval queue (Constitution v1.3).
 6. Optional/carried: Anthropic key (Kiaros runs fully local today);
    private backup remote; Kiaros/jarvis naming reconciliation; SSE event
    bridge (PLANNED; needs plane-ownership definition); ports 3012–3016
@@ -134,3 +137,5 @@ To avoid confusion, phases are recorded in two eras:
 | 2026-07-06 | Layout corrections (communication interface = primary workspace, full-width) |
 | 2026-07-06 | PROJECT COMPLETION DIRECTIVE issued: phase workflow discontinued; governing docs = specification |
 | 2026-07-07 | Completion delta closed: MC read integration (read-through proxies, honest degraded envelope), StateManager persistence, optional Core auth (HTTP+WS), monitor timeout calibration, launcher scripts, honest write gates. All defects closed. Constitution v1.2. Owner-side finding: MC instance wedged since ~07-03, then down; OpenClaw config changed 07-03 (pre-dating this project's sessions) — billing evidence recorded read-only |
+| 2026-07-09 | **Production Completion Mission** (owner-approved 6-phase plan, all executed): **(1)** stability floor — status/memory/events routes wired to StateManager/MemoryService/EventBus (stub stores deleted), real Core process metrics (CoreMetrics) replace hardcoded ServicePanel numbers, TaskPanel auth-header gap fixed; **(2)** Desktop WebSocket client (coreSocket, reconnect+heartbeat, polling fallback preserved) — /ws finally has a consumer; **(3)** cloud voice: Deepgram STT relay (`/ws/voice/stt`) + ElevenLabs TTS proxy (`/api/v1/voice/tts`, voice `bIHbv24MWmeRgasZH58o`) with keys in jarvis/.env only, engine abstraction in Desktop with automatic browser fallback + provider/language settings; VOICE_ARCHITECTURE v2.0 (privacy invariant amended to owner-opt-in); E2E harness 9/9 both before-and-after; **(4)** Knowledge Vault: MC `.env` `OPENCLAW_MEMORY_DIR` → `~/Desktop/Kiaros/Kiaros-1` (env-only; MC source untouched; backup kept), Kiaros questions consult vault via read-only MC search; **(5)** KiarosFace executive interface (6th mode, default) + turquoise/purple design system; regression (mode-selector under footer overlay) found and root-cause-fixed in-phase; **(6)** docs reconciled, full regression green (core 78/78, desktop build, voice E2E 9/9, all 6 modes verified). **Owner-approved deferrals:** MC write integration (stays 501-gated), spec-only Core modules (Planner/Prioritizer/Notifications/SQLite/SSE — design-intent, not built), MC source cleanups (.obsidian tree exclusion, dead agent-squad panel). **Owner to-do:** put DEEPGRAM_API_KEY + ELEVENLABS_API_KEY in jarvis/.env (then restart Core); start MC to activate vault indexing |
+| 2026-07-09 | **Professional Software Engineer Mission** (owner directive: "become a standalone Professional Software Engineer capable of engineering virtually anything from a single request; resolve every production blocker"). Executed: **(1)** full three-track audit (Core, Desktop, docs-vs-code) with green baseline (78/78, build clean); **(2)** MC WRITE PATH — `MissionControlClient.createTask` + `TaskDispatcher` (every dispatch decided by the Approval Engine; approved→auto-create, level 2–3→persisted owner-approval queue, rejected/unclear→never dispatched; MC failure→honest error, approval never lost), conversation pipeline wired (imperative work requests dispatch; persona forbids unreported action claims), `POST /api/v1/tasks` un-gated (decision-mirrored HTTP statuses), `/api/v1/approval/pending[/:id/approve|deny]` endpoints, Desktop "Awaiting Your Approval" panel + task/approval WS push; **(3)** verified LIVE end-to-end: auto-dispatch created real MC task, held dispatch approved→MC task assigned to `main`, deny path, degraded path with MC down; **(4)** defect fixes: approval-rule regex gap (dangerous "delete all repositories" slipped to level 2), MC unix-seconds timestamps→1970 bug, LLM hallucinated-action hardening + regression tests (93/93), TTS abort leak, Deepgram buffer cap, WS liveness reaping, global rejection handlers, Desktop double-init removed, HUD fabricated data replaced with live CoreMetrics/services, TaskPanel status/type gaps; **(5)** governance: Constitution v1.3, MESSAGE_ROUTING/MISSION_CONTROL_ARCHITECTURE/VOICE_ARCHITECTURE/README reconciled; **(6)** regression: core 93/93, desktop build clean, voice E2E 9/9. Update/delete of MC tasks + decorative visual modes remain by-design exclusions |

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { JarvisProvider } from './hooks/useJarvis';
+import { KiarosFace } from './components/KiarosFace';
 import { JarvisOrb } from './components/JarvisOrb';
 import { JarvisSphere } from './components/JarvisSphere';
 import { JarvisWave } from './components/JarvisWave';
@@ -9,6 +9,7 @@ import { ModeSelector } from './components/ModeSelector';
 import { ConversationPanel } from './components/ConversationPanel';
 import { ServicePanel } from './components/ServicePanel';
 import { TaskPanel } from './components/TaskPanel';
+import { PendingApprovals } from './components/PendingApprovals';
 import { Header } from './components/Header';
 import { useJarvisStore } from './stores/jarvisStore';
 
@@ -24,6 +25,8 @@ function AppContent() {
 
   const renderCenterContent = () => {
     switch (mode) {
+      case 'face':
+        return <KiarosFace />;
       case 'orb':
         return <JarvisOrb />;
       case 'sphere':
@@ -35,7 +38,7 @@ function AppContent() {
       case 'ambient':
         return <JarvisAmbient />;
       default:
-        return <JarvisOrb />;
+        return <KiarosFace />;
     }
   };
 
@@ -56,9 +59,10 @@ function AppContent() {
           <ModeSelector />
         </div>
 
-        {/* Right Panel - Tasks */}
+        {/* Right Panel - Tasks + owner-approval workflow */}
         <div className="jarvis-right-panel">
           <TaskPanel />
+          <PendingApprovals />
         </div>
 
         {/* Footer - Communication Interface (full center-column width) */}
@@ -70,12 +74,11 @@ function AppContent() {
   );
 }
 
+// AppContent owns the single initialize/shutdown lifecycle. The former
+// JarvisProvider wrapper duplicated it (double init on every mount, 4x
+// under StrictMode) and its context was never consumed — removed 2026-07-09.
 function App() {
-  return (
-    <JarvisProvider>
-      <AppContent />
-    </JarvisProvider>
-  );
+  return <AppContent />;
 }
 
 export default App;

@@ -101,7 +101,8 @@ The only sanctioned Kiaros → Mission Control interface:
 |---|---|---|
 | Health | `GET /api/health` | IMPLEMENTED (used by MonitorService) |
 | Read tasks/agents/projects | `GET /api/tasks`, `/api/agents`, `/api/projects` | IMPLEMENTED (2026-07-07): typed, timeboxed (10s) reads with x-api-key; Kiaros task/project routes proxy these (degraded envelope when MC is down) |
-| Create/update tasks | `POST/PATCH /api/tasks…` | FORBIDDEN — write methods deliberately absent from the client; Kiaros write endpoints answer 501. Unlocking requires an owner-approved phase routed through the (implemented) Approval Engine (Art. V) |
+| Create task | `POST /api/tasks` | IMPLEMENTED (2026-07-09, owner directive): `MissionControlClient.createTask`, callable ONLY by the TaskDispatcher, which obtains an Approval Engine decision for every request (Constitution v1.3 Art. V — engine bypass is FORBIDDEN). Tasks carry `created_by: kiaros`, the decision id in metadata, and `assigned_to` from `KIAROS_MC_ASSIGNEE` (default `main`) |
+| Update/delete tasks | `PATCH/PUT/DELETE /api/tasks…` | OUT OF SCOPE by design — no client methods; Kiaros endpoints answer 501 (MC's own UI owns task lifecycle edits) |
 | Live events | `GET /api/events` (SSE) | PLANNED — Phase 9 spec calls for it; not implemented in Kiaros |
 
 Auth: Kiaros Core must use a Mission Control API key
@@ -127,3 +128,4 @@ Auth: Kiaros Core must use a Mission Control API key
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-07-04 | Initial version (Phase 2 deliverable) |
+| 2.0 | 2026-07-09 | PSE mission: §5 contract updated — task creation implemented via TaskDispatcher/Approval Engine; update/delete recorded as by-design out of scope |

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { JarvisMode, JarvisStatus } from '@shared/types/index.js';
+import { UI_MODES } from '@shared/constants/index.js';
 import { coreHeaders } from '../services/coreAuth';
+import { coreSocket } from '../services/coreSocket';
 
 interface JarvisState {
   // State
@@ -8,7 +10,14 @@ interface JarvisState {
   status: JarvisStatus;
   isConnected: boolean;
   messages: Array<{ role: 'user' | 'jarvis'; content: string; timestamp: Date }>;
-  
+  /**
+   * Change counters bumped by Core push events (task_* / approval_*).
+   * Panels put these in their effect deps to refetch immediately instead
+   * of waiting for their poll interval.
+   */
+  taskEventsNonce: number;
+  approvalEventsNonce: number;
+
   // Actions
   setMode: (mode: JarvisMode) => void;
   setStatus: (status: JarvisStatus) => void;
@@ -29,16 +38,23 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   status: 'idle',
   isConnected: false,
   messages: [],
-  
+  taskEventsNonce: 0,
+  approvalEventsNonce: 0,
+
   // Actions
   setMode: (mode) => {
     set({ mode });
-    // Notify server of mode change
+    // Notify server of mode change. A failure is visible in the console
+    // (local and server mode can diverge until the next mode:changed push).
     fetch(`${JARVIS_CORE_URL}/api/v1/mode/set`, {
       method: 'POST',
       headers: coreHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ mode }),
-    }).catch(() => {});
+    }).then((response) => {
+      if (!response.ok) console.warn(`Mode sync failed: Core answered HTTP ${response.status}`);
+    }).catch((error) => {
+      console.warn('Mode sync failed: Core unreachable', error);
+    });
   },
   
   setStatus: (status) => set({ status }),
@@ -123,7 +139,43 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
       (window as any).__jarvisInterval = setInterval(() => {
         get().checkConnection();
       }, 5000);
-      
+
+      // Real-time channel: push updates from the Core EventBus. Polling
+      // above remains the connection-state authority; the socket makes
+      // open/close awareness immediate and keeps the mode in sync when it
+      // changes outside this window (start() is StrictMode-idempotent).
+      coreSocket.start({
+        onOpen: () => {
+          void get().checkConnection();
+        },
+        onClose: () => {
+          void get().checkConnection();
+        },
+        onEvent: (event) => {
+          if (event.type === 'mode:changed') {
+            const newMode = (event.data as { newMode?: string } | undefined)?.newMode;
+            if (
+              newMode &&
+              Object.values(UI_MODES).includes(newMode as JarvisMode) &&
+              newMode !== get().mode
+            ) {
+              set({ mode: newMode as JarvisMode });
+            }
+            return;
+          }
+          // Push-refresh signals for the task/approval panels — Kiaros can
+          // now create MC tasks and hold dispatches for owner approval, so
+          // these must surface immediately, not on the next poll.
+          if (event.type === 'task_created' || event.type === 'task_completed' || event.type === 'task_failed') {
+            set((state) => ({ taskEventsNonce: state.taskEventsNonce + 1 }));
+            return;
+          }
+          if (event.type === 'approval_required' || event.type === 'approval_granted' || event.type === 'approval_denied') {
+            set((state) => ({ approvalEventsNonce: state.approvalEventsNonce + 1 }));
+          }
+        },
+      });
+
     } catch (error) {
       console.error('Failed to initialize Jarvis:', error);
       set({ isConnected: false });
@@ -134,6 +186,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     if ((window as any).__jarvisInterval) {
       clearInterval((window as any).__jarvisInterval);
     }
+    coreSocket.stop();
     set({ isConnected: false });
   },
   

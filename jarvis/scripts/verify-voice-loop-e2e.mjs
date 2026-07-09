@@ -10,12 +10,20 @@
 //
 // Requires Core (3010) + Desktop (3011) running. Run from repo root:
 //   node jarvis/scripts/verify-voice-loop-e2e.mjs
+//
+// Provider modes (Phase 3): the loop turns run on the mocked BROWSER engines
+// by default so the harness is deterministic without cloud keys. Set
+// E2E_STT_PROVIDER / E2E_TTS_PROVIDER (auto|browser|deepgram|elevenlabs) to
+// exercise cloud engine selection once keys are configured in jarvis/.env —
+// note cloud STT needs a real microphone (mock audio carries no speech).
 import { chromium } from '../../node_modules/@playwright/test/index.mjs';
 
 const DESKTOP_URL = 'http://localhost:3011';
 const SCREENSHOT = process.env.E2E_SCREENSHOT || 'AUDIT/voice_loop_e2e_latest.png';
 const TURNS = parseInt(process.env.E2E_TURNS || '5', 10);
 const TURN_TIMEOUT_MS = 90000;
+const STT_PROVIDER = process.env.E2E_STT_PROVIDER || 'browser';
+const TTS_PROVIDER = process.env.E2E_TTS_PROVIDER || 'browser';
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -30,6 +38,18 @@ const page = await context.newPage();
 const consoleErrors = [];
 page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
 page.on('pageerror', (err) => consoleErrors.push(String(err)));
+
+// ---- Seed provider preferences before any app code runs ----
+await page.addInitScript(
+  ({ stt, tts }) => {
+    try {
+      const key = 'kiaros_voice_settings';
+      const existing = JSON.parse(localStorage.getItem(key) || '{}');
+      localStorage.setItem(key, JSON.stringify({ ...existing, sttProvider: stt, ttsProvider: tts }));
+    } catch { /* defaults apply */ }
+  },
+  { stt: STT_PROVIDER, tts: TTS_PROVIDER },
+);
 
 // ---- Inject mocks before any app code runs ----
 await page.addInitScript(() => {
@@ -161,6 +181,31 @@ try {
     null, { timeout: 20000 },
   );
   check('desktop loads, core connected', true);
+
+  // ---- Voice provider capability surface (Phase 3) ----
+  // Core must answer the capability query, and the status indicator must
+  // honestly report the engines actually selected for this run.
+  const voiceConfig = await page.evaluate(async () => {
+    const response = await fetch('http://localhost:3010/api/v1/voice/config');
+    const body = await response.json();
+    return body?.data ?? null;
+  });
+  const expectStt =
+    STT_PROVIDER !== 'browser' && voiceConfig?.stt?.available ? 'Deepgram' : 'Browser';
+  const expectTts =
+    TTS_PROVIDER !== 'browser' && voiceConfig?.tts?.available ? 'ElevenLabs' : 'Browser';
+  await page.waitForSelector('.voice-status-indicator', { timeout: 10000 });
+  // Capability fetch is async on init — wait for the indicator to settle.
+  await page.waitForFunction(
+    ({ s, t }) => {
+      const title = document.querySelector('.voice-status-indicator')?.getAttribute('title') || '';
+      return title.includes(`STT: ${s}`) && title.includes(`TTS: ${t}`);
+    },
+    { s: expectStt, t: expectTts }, { timeout: 10000 },
+  );
+  check(`provider selection honest (STT: ${expectStt}, TTS: ${expectTts})`,
+    voiceConfig !== null,
+    `core reports stt.available=${voiceConfig?.stt?.available}, tts.available=${voiceConfig?.tts?.available}`);
 
   // ---- Start the conversation loop ----
   await micButton().click();

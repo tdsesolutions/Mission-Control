@@ -9,9 +9,10 @@
  *
  * 'auto' picks the first configured provider: anthropic (if ANTHROPIC_API_KEY
  * is set), else openai-compatible (if OPENAI_COMPAT_BASE_URL + model are
- * set), else none. With no provider configured, Kiaros falls back to the
- * built-in template responses and keeps working — the LLM is an enhancement,
- * never a hard dependency.
+ * set), else none. With no provider configured, Kiaros answers with an
+ * HONEST degraded reply (never mute, never canned pretending — Phase 7
+ * retired the template engine); the LLM is an enhancement, never a hard
+ * dependency.
  */
 
 import { logger } from '../../utils/logger.js';
@@ -65,7 +66,7 @@ export function getLLMProvider(): LLMProvider | null {
       );
     } else {
       logger.info(
-        `LLM provider: none configured (KIAROS_LLM_PROVIDER=${config.llm.provider}) — using template responses`,
+        `LLM provider: none configured (KIAROS_LLM_PROVIDER=${config.llm.provider}) — replies will be honest degraded notices`,
       );
     }
   }

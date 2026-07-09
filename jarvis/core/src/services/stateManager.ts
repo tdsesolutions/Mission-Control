@@ -55,9 +55,10 @@ export class JarvisStateManager {
   constructor(eventBus: EventBus) {
     this.eventBus = eventBus;
     
-    // Initialize default state
+    // Initialize default state (face = the executive interface default;
+    // a persisted owner preference from MemoryService overrides this)
     this.state = {
-      mode: UI_MODES.ORB,
+      mode: UI_MODES.FACE,
       status: 'idle',
       context: this.createInitialContext(),
       memory: this.createInitialMemory(),
@@ -81,7 +82,7 @@ export class JarvisStateManager {
       },
       longTerm: {
         userPreferences: {
-          displayMode: UI_MODES.ORB,
+          displayMode: UI_MODES.FACE,
           notifications: {
             enabled: true,
             soundEnabled: true,

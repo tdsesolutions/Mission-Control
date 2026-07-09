@@ -56,19 +56,21 @@ voiceStore) fixed Phase 3. UI branding says "Kiaros"; code identifiers say
 - The OpenClaw Gateway or any OpenClaw file (`~/.openclaw`). All execution
   requests must go through Mission Control's API.
 - Mission Control's database, filesystem, or source code.
-- Mission Control **writes** (task/project creation) — permitted only in a
-  future owner-approved phase routed through the (implemented) Approval
-  Engine; until then Kiaros write endpoints answer 501 — Constitution Art. V.
+- Mission Control task creation from anywhere except the TaskDispatcher —
+  the dispatcher obtains an Approval Engine decision for every request
+  (owner-approved 2026-07-09; Constitution v1.3 Art. V). Task/project
+  update/delete remain out of scope entirely (501 by design).
 - Protected dev ports.
 
-**Current state:** COMPLETE (project completion, 2026-07-07). Conversation
+**Current state:** COMPLETE (PSE mission, 2026-07-09). Conversation
 is LLM-backed via the provider abstraction (local Ollama live; Anthropic
 wire-verified, awaiting owner key) with honest degraded mode. Conversation
-history and StateManager mode/preferences persist via MemoryService.
-Task/project routes are read-through PROXIES of Mission Control (writes
-501-gated per Art. V); MissionControlClient does typed, timeboxed reads
-only. Auth: optional shared-secret (`KIAROS_CORE_TOKEN`) on HTTP + WS, off
-by default on localhost. Deliberately crash-proof init and LLM-failure
+history, StateManager mode/preferences, and the pending-dispatch queue
+persist via MemoryService. Task/project routes are read-through PROXIES of
+Mission Control; task CREATION routes through TaskDispatcher → Approval
+Engine → `MissionControlClient.createTask` (update/delete 501-gated by
+design). Auth: optional shared-secret (`KIAROS_CORE_TOKEN`) on HTTP + WS,
+off by default on localhost. Deliberately crash-proof init and LLM-failure
 honest degradation — preserve both.
 
 ## 3. Kiaros Shared (`jarvis/shared/`)

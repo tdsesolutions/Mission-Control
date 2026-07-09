@@ -7,6 +7,17 @@ import { EventEmitter } from 'events';
 import { logger } from '../utils/logger.js';
 import type { SystemEvent, SystemEventType } from '../../../shared/types/index.js';
 
+let sharedInstance: EventBus | null = null;
+
+/** Register the container-owned instance so route modules share it. */
+export function setEventBus(instance: EventBus): void {
+  sharedInstance = instance;
+}
+
+export function getEventBus(): EventBus | null {
+  return sharedInstance;
+}
+
 export class EventBus extends EventEmitter {
   private events: SystemEvent[] = [];
   private readonly maxEvents: number;
@@ -17,7 +28,7 @@ export class EventBus extends EventEmitter {
     this.setMaxListeners(100);
   }
 
-  emitEvent(type: SystemEventType, severity: 'info' | 'warning' | 'error' | 'critical', source: string, message: string, data?: unknown): void {
+  emitEvent(type: SystemEventType, severity: 'info' | 'warning' | 'error' | 'critical', source: string, message: string, data?: unknown): SystemEvent {
     const event: SystemEvent = {
       id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type,
@@ -53,6 +64,8 @@ export class EventBus extends EventEmitter {
       default:
         logger.info(`${source}: ${message}`, data);
     }
+
+    return event;
   }
 
   getEvents(options?: {

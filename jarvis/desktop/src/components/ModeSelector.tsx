@@ -1,8 +1,9 @@
 import { useJarvisStore } from '../stores/jarvisStore';
-import { Circle, Box, Waves, LayoutDashboard, Sparkles } from 'lucide-react';
+import { Circle, Box, Waves, LayoutDashboard, Sparkles, ScanFace } from 'lucide-react';
 import type { JarvisMode } from '@shared/types/index.js';
 
 const modes: { id: JarvisMode; icon: React.ReactNode; label: string }[] = [
+  { id: 'face', icon: <ScanFace size={20} />, label: 'Face' },
   { id: 'orb', icon: <Circle size={20} />, label: 'Orb' },
   { id: 'sphere', icon: <Box size={20} />, label: 'Sphere' },
   { id: 'wave', icon: <Waves size={20} />, label: 'Wave' },

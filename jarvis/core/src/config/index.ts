@@ -36,6 +36,10 @@ export const config: JarvisConfig = {
   missionControl: {
     url: process.env.MISSION_CONTROL_URL || 'http://localhost:3002',
     apiKey: process.env.MISSION_CONTROL_API_KEY || '',
+    // Kiaros-created tasks go to MC's `main` agent (Constitution Art. II:
+    // MC dispatches to OpenClaw `main` only; specialist routing is
+    // OpenClaw's). Set empty to leave tasks unassigned in the MC inbox.
+    assignee: process.env.KIAROS_MC_ASSIGNEE ?? 'main',
   },
 
   // Optional shared-secret auth for the Core API (CURRENT_PHASE defect 5).
@@ -50,6 +54,7 @@ export const config: JarvisConfig = {
   },
   
   features: {
+    faceMode: process.env.FEATURE_FACE_MODE !== 'false',
     orbMode: process.env.FEATURE_ORB_MODE !== 'false',
     sphereMode: process.env.FEATURE_SPHERE_MODE !== 'false',
     waveMode: process.env.FEATURE_WAVE_MODE !== 'false',
@@ -72,6 +77,21 @@ export const config: JarvisConfig = {
       baseUrl: process.env.OPENAI_COMPAT_BASE_URL || '',
       apiKey: process.env.OPENAI_COMPAT_API_KEY || '',
       model: process.env.OPENAI_COMPAT_MODEL || '',
+    },
+  },
+
+  // Cloud voice providers. Keys are read from jarvis/.env only and never
+  // leave this process — the Desktop talks to Core proxy endpoints. Unset
+  // keys simply mean "unavailable" (browser Web Speech remains the fallback).
+  voice: {
+    deepgram: {
+      apiKey: process.env.DEEPGRAM_API_KEY || '',
+      model: process.env.DEEPGRAM_MODEL || 'nova-2',
+    },
+    elevenlabs: {
+      apiKey: process.env.ELEVENLABS_API_KEY || '',
+      voiceId: process.env.ELEVENLABS_VOICE_ID || 'bIHbv24MWmeRgasZH58o',
+      modelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
     },
   },
 };

@@ -18,7 +18,7 @@
  */
 
 import { create } from 'zustand';
-import { VoiceManager, VoiceState, VoiceSettings, VoiceSettingsManager } from '../services/voice';
+import { VoiceManager, VoiceState, VoiceSettings, VoiceSettingsManager, ProviderStatus, SttProviderPreference, TtsProviderPreference } from '../services/voice';
 import { useJarvisStore } from './jarvisStore';
 
 const RELISTEN_SETTLE_MS = 400;
@@ -39,6 +39,8 @@ interface VoiceStoreState {
   errorMessage: string | null;
   settings: VoiceSettings;
   permissionGranted: boolean;
+  /** Which engines the next listen/speak will use (cloud vs browser). */
+  providers: ProviderStatus;
 
   // Services
   voiceManager: VoiceManager;
@@ -62,6 +64,9 @@ interface VoiceStoreState {
   setPitch: (pitch: number) => void;
   setVolume: (volume: number) => void;
   setVoice: (voiceURI: string) => void;
+  setSttProvider: (provider: SttProviderPreference) => void;
+  setTtsProvider: (provider: TtsProviderPreference) => void;
+  setLanguage: (language: string) => void;
 }
 
 // Lazy singletons
@@ -261,7 +266,8 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => {
     isSupported: false,
     errorMessage: null,
     permissionGranted: false,
-    settings: { enabled: true, muted: false, autoSpeak: true, conversationMode: true, rate: 1.0, pitch: 1.0, volume: 1.0, voiceURI: null },
+    settings: { enabled: true, muted: false, autoSpeak: true, conversationMode: true, rate: 1.0, pitch: 1.0, volume: 1.0, voiceURI: null, sttProvider: 'auto', ttsProvider: 'auto', language: 'en-US' },
+    providers: { stt: 'browser', tts: 'browser', cloudSttConfigured: false, cloudTtsConfigured: false, sttDegraded: false, ttsDegraded: false },
 
     get voiceManager() { return getVoiceManager(); },
     get settingsManager() { return getVoiceManager().getSettingsManager(); },
@@ -333,6 +339,14 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => {
       const supportError = manager().getSupportError();
       if (supportError) console.warn('Voice support issue:', supportError);
       void get().checkPermission();
+      // Cloud provider discovery (Deepgram/ElevenLabs on Core). Failure
+      // means browser engines only — support state is re-derived after the
+      // answer since cloud STT can make an otherwise-unsupported browser
+      // (no Web Speech recognition) voice-capable.
+      manager().onStatusChange((status) => set({ providers: status }));
+      void manager().refreshCapabilities().then((status) => {
+        set({ providers: status, isSupported: manager().isSupported() });
+      });
       set({ isSupported, settings: settingsManager().getSettings() });
     },
 
@@ -423,5 +437,17 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => {
     setPitch: (pitch) => { settingsManager().setPitch(pitch); set({ settings: settingsManager().getSettings() }); },
     setVolume: (volume) => { settingsManager().setVolume(volume); set({ settings: settingsManager().getSettings() }); },
     setVoice: (voiceURI) => { settingsManager().setVoiceURI(voiceURI); set({ settings: settingsManager().getSettings() }); },
+    setSttProvider: (provider) => {
+      settingsManager().setSttProvider(provider);
+      set({ settings: settingsManager().getSettings(), providers: manager().getProviderStatus() });
+    },
+    setTtsProvider: (provider) => {
+      settingsManager().setTtsProvider(provider);
+      set({ settings: settingsManager().getSettings(), providers: manager().getProviderStatus() });
+    },
+    setLanguage: (language) => {
+      settingsManager().setLanguage(language);
+      set({ settings: settingsManager().getSettings() });
+    },
   };
 });

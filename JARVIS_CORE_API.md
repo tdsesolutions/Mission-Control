@@ -3,7 +3,14 @@
 **Phase 9: Jarvis Core Foundation**  
 **Date:** 2026-06-28  
 **Version:** 1.0  
-**Status:** Internal Service Interface
+**Status:** Internal Service Interface — **HISTORICAL DESIGN INTENT, PARTIALLY BUILT**
+
+> **Reality note (2026-07-09, owner-approved deferral):** for the API that
+> actually exists, see `jarvis/README.md` (endpoints) and
+> JARVIS_CORE_ARCHITECTURE.md. Interfaces described here for Planner,
+> Prioritizer, and Notification modules are unbuilt design intent. All
+> Kiaros→Mission Control writes remain owner-gated (`501
+> WRITES_OWNER_GATED`) pending the Approval-Engine-routed write phase.
 
 ---
 

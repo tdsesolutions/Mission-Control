@@ -20,7 +20,11 @@ each hop IMPLEMENTED / PARTIAL / SPECIFIED / PLANNED.
    talks to the OpenClaw Gateway for dispatch. Kiaros never does.
 3. **Main-agent-only dispatch:** Mission Control submits to OpenClaw `main`;
    specialist routing belongs to OpenClaw.
-4. **No Kiaros→MC writes** until the Approval Engine is implemented.
+4. **Kiaros→MC writes exist ONLY as task creation through the
+   TaskDispatcher**, which obtains an Approval Engine decision for every
+   request (implemented 2026-07-09, Constitution v1.3). Calling
+   `MissionControlClient.createTask` from anywhere else is FORBIDDEN.
+   Kiaros never updates or deletes MC tasks.
 5. **Telegram routes to Claw only** (backup channel); it is never part of any
    Kiaros or Mission Control message path.
 
@@ -57,10 +61,13 @@ exactly once), then auto-relistens in conversation mode (Phase 7 loop —
 see VOICE_ARCHITECTURE.md for the invariants)
 ```
 
-**Critical truth (unchanged by Phase 5):** this path still terminates inside
-Kiaros Core. The LLM only *converses* — its system prompt explicitly forbids
-claiming to act, and **nothing reaches Mission Control.** Task execution
-remains gated on the Approval Engine (Constitution Art. IV/V).
+**Updated truth (2026-07-09):** action-class messages (command intent or
+imperative work requests) are routed through the TaskDispatcher BEFORE the
+LLM runs: Approval Engine decision → `approved` creates a real MC task /
+levels 2–3 join the owner-approval queue / rejected+unclear never dispatch.
+The LLM receives the dispatch outcome as a ground-truth SYSTEM REPORT and
+must relay it verbatim-truthfully; with no report it is forbidden to claim
+any action. Non-action messages still terminate inside Kiaros Core.
 
 **Data egress:** with the `anthropic` provider, conversation text (never
 audio) is sent to the Anthropic API — the only sanctioned outbound external
@@ -111,13 +118,40 @@ Any caller
   → side effects: audit append (core/logs/approval-audit.jsonl) + event-bus
     notification. NOTHING IS EXECUTED.
 
-Conversation pipeline: command-intent messages are classified automatically;
-the decision rides in response metadata and as an LLM context hint so Kiaros
-speaks accurately about what would need approval. Information only.
+Conversation pipeline: action-class messages are dispatched automatically
+via the TaskDispatcher (see §3c); the decision + dispatch outcome ride in
+response metadata and as the LLM's ground-truth context.
 ```
 
-**Rule:** any future execution path MUST obtain its decision here first;
-bypassing the engine is a FORBIDDEN change class (Constitution Art. V v1.1).
+**Rule:** every execution path MUST obtain its decision here first;
+bypassing the engine is a FORBIDDEN change class (Constitution Art. V).
+
+## 3c. Kiaros Dispatch Path (2026-07-09) — IMPLEMENTED
+
+```
+Action request (conversation command/imperative, or POST 3010/api/v1/tasks)
+  → TaskDispatcher.requestDispatch (services/dispatch/)
+  → ApprovalEngine.classify (ALWAYS — no bypass)
+     approved (levels 0–1)      → MissionControlClient.createTask
+                                   → POST 3002/api/tasks (x-api-key)
+                                   → assigned_to = KIAROS_MC_ASSIGNee env
+                                     (default `main`, Art. II) → MC's own
+                                     task-dispatch takes it to OpenClaw
+     requires_owner_approval    → persisted pending queue (MemoryService,
+     (levels 2–3)                 restart-safe) → Desktop "Awaiting Your
+                                   Approval" panel or
+                                   POST /api/v1/approval/pending/:id/approve
+                                   → createTask (deny = nothing created;
+                                   MC failure keeps entry pending w/ error)
+     requires_clarification     → no dispatch; Kiaros asks
+     rejected                   → no dispatch; reason relayed
+  → events: task_created / approval_required / approval_granted / _denied
+    → /ws push → Desktop panels refresh immediately
+```
+
+Honesty invariants: a task is only ever reported "created" with the real MC
+id; MC unreachable is reported as failure (`dispatch_failed`), never faked;
+an owner approval is never lost to an MC outage.
 
 ## 4. Kiaros → Mission Control Path — PARTIAL / SPECIFIED
 
@@ -125,7 +159,8 @@ bypassing the engine is a FORBIDDEN change class (Constitution Art. V v1.1).
 |---|---|---|
 | Health probe | `GET 3002/api/health` every 30s (MonitorService, 5s timeout) | IMPLEMENTED |
 | Read tasks/agents/projects | `MissionControlClient.listTasks()/getTask()/listProjects()/listAgents()` (x-api-key, 10s timebox) | IMPLEMENTED (2026-07-07) — consumed by the Kiaros task/project proxy routes |
-| Create/update task | (no client methods — deliberately absent) | FORBIDDEN until an owner-approved phase routes writes through the Approval Engine; Kiaros write endpoints answer 501 honestly |
+| Create task | `MissionControlClient.createTask()` — sole caller is the TaskDispatcher, which consults the Approval Engine on every request (§3c) | IMPLEMENTED (2026-07-09, owner directive; Constitution v1.3). Engine bypass = FORBIDDEN |
+| Update/delete task | (no client methods — deliberately absent) | OUT OF SCOPE by design: MC's own UI owns task lifecycle edits; Kiaros endpoints answer 501 honestly |
 | Subscribe to MC events | SSE `/api/events` | SPECIFIED (Phase 9), NOT IMPLEMENTED |
 
 ## 5. Event Broadcast Paths
@@ -139,14 +174,18 @@ DB mutation → eventBus.broadcast(type, data)
 `security.*`, `connection.*`, `github.synced`, `session.updated`,
 `task.escalated`.
 
-### Kiaros Core (IMPLEMENTED but unconsumed)
+### Kiaros Core (IMPLEMENTED, consumed by the Desktop since 2026-07-09)
 ```
 any service → EventBus.emitEvent(type, severity, source, message, data)
   → ring buffer (GET /api/v1/events)
   → WebSocketManager broadcast on ws://3010/ws
-      (client protocol: subscribe / unsubscribe / ping; empty subscription = all)
+      (client protocol: subscribe / unsubscribe / ping; empty subscription = all;
+       server-side liveness sweep reaps dead sockets every 30s)
 ```
-**No consumer exists today** — the Desktop polls HTTP instead of using `/ws`.
+The Desktop's `coreSocket` (reconnect + heartbeat) consumes this feed:
+`mode:changed` syncs the visual mode; `task_*` and `approval_*` events
+push-refresh the TaskPanel and Awaiting-Your-Approval panels. HTTP polling
+remains the connection-state authority and the fallback.
 
 ### MC Browser ↔ Gateway (IMPLEMENTED)
 Long-lived authenticated WS from the MC UI to 18789 for live session/agent
@@ -193,3 +232,4 @@ responses (e.g. Next.js compilation) — flapping visible in
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-07-04 | Initial version (Phase 2 deliverable) |
+| 2.0 | 2026-07-09 | PSE mission: rule 4 rewritten (sanctioned create-only write path); §2 conversation path now dispatches action requests pre-LLM with ground-truth reporting; new §3c Kiaros Dispatch Path; §4 table create=IMPLEMENTED / update-delete=out-of-scope; §5 Kiaros events now consumed by Desktop coreSocket |

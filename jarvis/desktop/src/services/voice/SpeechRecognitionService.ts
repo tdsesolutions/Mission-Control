@@ -27,9 +27,18 @@ export class SpeechRecognitionService {
   private recognition: SpeechRecognition | null = null;
   private callbacks: SpeechRecognitionCallbacks = {};
   private state: SpeechRecognitionState = 'idle';
+  private language = 'en-US';
 
   constructor() {
     // Defer initialization to first use
+  }
+
+  /** BCP-47 tag applied on the next start() (default en-US). */
+  setLanguage(language: string): void {
+    this.language = language || 'en-US';
+    if (this.recognition) {
+      this.recognition.lang = this.language;
+    }
   }
 
   private initialize(): void {
@@ -37,7 +46,7 @@ export class SpeechRecognitionService {
     if (this.recognition) return; // Already initialized
 
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
+
     if (!SpeechRecognitionAPI) {
       console.warn('Speech Recognition not supported in this browser');
       return;
@@ -46,7 +55,7 @@ export class SpeechRecognitionService {
     this.recognition = new SpeechRecognitionAPI();
     this.recognition.continuous = false;
     this.recognition.interimResults = true;
-    this.recognition.lang = 'en-US';
+    this.recognition.lang = this.language;
 
     this.setupEventHandlers();
   }

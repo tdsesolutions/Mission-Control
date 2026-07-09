@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapMcTask, mapMcProject } from './missionControlClient.js';
+import { mapMcTask, mapMcProject, toMcDate } from './missionControlClient.js';
 
 describe('Mission Control → Kiaros shape mapping (read-through proxy)', () => {
   it('maps a typical MC task row', () => {
@@ -50,5 +50,47 @@ describe('Mission Control → Kiaros shape mapping (read-through proxy)', () => 
     expect(project.id).toBe('3');
     expect(project.status).toBe('active');
     expect(project.metrics.totalTasks).toBe(0);
+  });
+
+  it('maps MC timestamps whether ISO strings, unix seconds, or unix ms', () => {
+    // Regression: POST /api/tasks returns created_at as unix SECONDS —
+    // fed raw to new Date() that landed in January 1970.
+    const iso = '2026-07-09T12:00:00.000Z';
+    expect(toMcDate(iso).toISOString()).toBe(iso);
+    expect(toMcDate(1783638768).getUTCFullYear()).toBe(2026);
+    expect(toMcDate(1783638768000).getUTCFullYear()).toBe(2026);
+    expect(toMcDate(undefined).getUTCFullYear()).toBeGreaterThanOrEqual(2026);
+    expect(toMcDate('not-a-date').getUTCFullYear()).toBeGreaterThanOrEqual(2026);
+
+    const task = mapMcTask({ id: 1, created_at: 1783638768 });
+    expect(task.createdAt.getUTCFullYear()).toBe(2026);
+  });
+});
+
+describe('Knowledge Vault search mapping (Phase 4)', () => {
+  it('maps results and strips FTS highlight markup', async () => {
+    const { mapKnowledgeHits } = await import('./missionControlClient.js');
+    const hits = mapKnowledgeHits({
+      results: [
+        { path: 'Projects/Kiaros.md', title: 'Kiaros', snippet: 'the <mark>voice</mark> loop is <mark>complete</mark>' },
+        { path: 'Welcome.md', title: '', snippet: 'plain text' },
+      ],
+    });
+    expect(hits).toEqual([
+      { path: 'Projects/Kiaros.md', title: 'Kiaros', snippet: 'the voice loop is complete' },
+      { path: 'Welcome.md', title: '', snippet: 'plain text' },
+    ]);
+  });
+
+  it('tolerates missing or malformed fields', async () => {
+    const { mapKnowledgeHits } = await import('./missionControlClient.js');
+    expect(mapKnowledgeHits({})).toEqual([]);
+    expect(mapKnowledgeHits({ results: [{}] })).toEqual([{ path: '', title: '', snippet: '' }]);
+  });
+
+  it('caps result count', async () => {
+    const { mapKnowledgeHits } = await import('./missionControlClient.js');
+    const many = { results: Array.from({ length: 25 }, (_, i) => ({ path: `n${i}.md`, snippet: 's' })) };
+    expect(mapKnowledgeHits(many)).toHaveLength(10);
   });
 });

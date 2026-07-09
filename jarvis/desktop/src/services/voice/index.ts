@@ -7,6 +7,8 @@ export type { SpeechRecognitionState, SpeechRecognitionResult, SpeechRecognition
 export { SpeechSynthesisService } from './SpeechSynthesisService.js';
 export type { SpeechSynthesisOptions, SpeechSessionCallbacks } from './SpeechSynthesisService.js';
 export { VoiceSettingsManager } from './VoiceSettings.js';
-export type { VoiceSettings } from './VoiceSettings.js';
+export type { VoiceSettings, SttProviderPreference, TtsProviderPreference } from './VoiceSettings.js';
 export { VoiceManager } from './VoiceManager.js';
-export type { VoiceState } from './VoiceManager.js';
+export type { VoiceState, ProviderStatus } from './VoiceManager.js';
+export { DeepgramSttEngine } from './DeepgramSttEngine.js';
+export { ElevenLabsTtsEngine } from './ElevenLabsTtsEngine.js';

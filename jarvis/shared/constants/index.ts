@@ -100,6 +100,7 @@ export const INTERVALS = {
 // ============================================================================
 
 export const UI_MODES = {
+  FACE: 'face',
   ORB: 'orb',
   SPHERE: 'sphere',
   WAVE: 'wave',

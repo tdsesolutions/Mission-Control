@@ -3,7 +3,16 @@
 **Phase 9: Jarvis Core Foundation**  
 **Date:** 2026-06-28  
 **Version:** 1.0  
-**Status:** Specification
+**Status:** Specification — **HISTORICAL DESIGN INTENT, PARTIALLY BUILT**
+
+> **Reality note (2026-07-09, owner-approved deferral):** the implemented
+> Core (jarvis/core) differs from this spec. Built: ConversationManager /
+> IntentDetector / ModeSelector / ContextManager, LLM provider abstraction,
+> Approval Engine, MemoryService (JSON file), MonitorService, EventBus +
+> WebSocket broadcast, MC read-through client, voice provider proxy.
+> **Not built (deferred, not scheduled):** Planner, Prioritizer,
+> Notification Handler, SQLite persistence schema, SSE activity streams.
+> Do not treat those modules as existing capabilities.
 
 ---
 

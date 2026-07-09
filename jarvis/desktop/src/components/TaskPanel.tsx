@@ -1,28 +1,39 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, AlertCircle, ListTodo } from 'lucide-react';
+import { coreHeaders } from '../services/coreAuth';
+import { useJarvisStore } from '../stores/jarvisStore';
+import { CheckCircle2, Clock, AlertCircle, ListTodo, Ban, XCircle } from 'lucide-react';
 
 interface Task {
   id: string;
   title: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'critical';
 }
 
 export function TaskPanel() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [degraded, setDegraded] = useState(false);
+  // Bumped by Core push events (task_created/completed/failed) — refetch
+  // immediately when Kiaros dispatches work instead of waiting for the poll.
+  const taskEventsNonce = useJarvisStore((state) => state.taskEventsNonce);
 
   useEffect(() => {
     fetchTasks();
-  }, []);
+    // Kiaros can now create MC tasks from conversation — keep the queue
+    // fresh without waiting for a manual refresh.
+    const timer = setInterval(fetchTasks, 15_000);
+    return () => clearInterval(timer);
+  }, [taskEventsNonce]);
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch('http://localhost:3010/api/v1/tasks');
+      const response = await fetch('http://localhost:3010/api/v1/tasks', {
+        headers: coreHeaders(),
+      });
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data) {
+        if (data.success && Array.isArray(data.data)) {
           // Real Mission Control tasks via the Core read-through proxy
           setTasks(data.data.slice(0, 5));
           setDegraded(false);
@@ -46,6 +57,10 @@ export function TaskPanel() {
         return <CheckCircle2 size={14} className="text-[var(--j-success)]" />;
       case 'in_progress':
         return <Clock size={14} className="text-[var(--j-warning)]" />;
+      case 'blocked':
+        return <Ban size={14} className="text-[var(--j-error)]" />;
+      case 'cancelled':
+        return <XCircle size={14} className="text-[var(--j-text-muted)]" />;
       default:
         return <AlertCircle size={14} className="text-[var(--j-text-muted)]" />;
     }
@@ -53,6 +68,7 @@ export function TaskPanel() {
 
   const getPriorityClass = (priority: Task['priority']) => {
     switch (priority) {
+      case 'critical':
       case 'high':
         return 'bg-[rgba(255,51,102,0.2)] text-[var(--j-error)]';
       case 'medium':

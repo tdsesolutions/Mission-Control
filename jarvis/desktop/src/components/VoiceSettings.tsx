@@ -7,11 +7,25 @@ import { useState } from 'react';
 import { Settings } from 'lucide-react';
 import { useVoiceStore } from '../stores/voiceStore';
 
+const LANGUAGES: Array<{ tag: string; label: string }> = [
+  { tag: 'en-US', label: 'English (US)' },
+  { tag: 'en-GB', label: 'English (UK)' },
+  { tag: 'es-ES', label: 'Español' },
+  { tag: 'fr-FR', label: 'Français' },
+  { tag: 'de-DE', label: 'Deutsch' },
+  { tag: 'it-IT', label: 'Italiano' },
+  { tag: 'pt-BR', label: 'Português (BR)' },
+  { tag: 'ja-JP', label: '日本語' },
+  { tag: 'ko-KR', label: '한국어' },
+  { tag: 'zh-CN', label: '中文' },
+];
+
 export function VoiceSettingsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const {
     settings,
     isSupported,
+    providers,
     toggleVoice,
     toggleMute,
     toggleAutoSpeak,
@@ -19,6 +33,9 @@ export function VoiceSettingsPanel() {
     setRate,
     setPitch,
     setVolume,
+    setSttProvider,
+    setTtsProvider,
+    setLanguage,
   } = useVoiceStore();
 
   if (!isSupported) {
@@ -92,6 +109,60 @@ export function VoiceSettingsPanel() {
             </label>
           </div>
 
+          {/* Speech Recognition Provider */}
+          <div className="voice-setting-item">
+            <label>Speech Recognition</label>
+            <select
+              value={settings.sttProvider}
+              onChange={(e) => setSttProvider(e.target.value as 'auto' | 'browser' | 'deepgram')}
+              disabled={!settings.enabled}
+            >
+              <option value="auto">Auto (Deepgram when available)</option>
+              <option value="browser">Browser</option>
+              <option value="deepgram" disabled={!providers.cloudSttConfigured}>
+                Deepgram (cloud){providers.cloudSttConfigured ? '' : ' — not configured'}
+              </option>
+            </select>
+            <span className="text-xs text-[var(--j-text-muted)]">
+              Active: {providers.stt === 'deepgram' ? 'Deepgram' : 'Browser'}
+              {providers.sttDegraded ? ' (cloud temporarily unavailable)' : ''}
+            </span>
+          </div>
+
+          {/* Speech Voice Provider */}
+          <div className="voice-setting-item">
+            <label>Speech Voice</label>
+            <select
+              value={settings.ttsProvider}
+              onChange={(e) => setTtsProvider(e.target.value as 'auto' | 'browser' | 'elevenlabs')}
+              disabled={!settings.enabled || settings.muted}
+            >
+              <option value="auto">Auto (ElevenLabs when available)</option>
+              <option value="browser">Browser</option>
+              <option value="elevenlabs" disabled={!providers.cloudTtsConfigured}>
+                ElevenLabs (cloud){providers.cloudTtsConfigured ? '' : ' — not configured'}
+              </option>
+            </select>
+            <span className="text-xs text-[var(--j-text-muted)]">
+              Active: {providers.tts === 'elevenlabs' ? 'ElevenLabs' : 'Browser'}
+              {providers.ttsDegraded ? ' (cloud temporarily unavailable)' : ''}
+            </span>
+          </div>
+
+          {/* Recognition Language */}
+          <div className="voice-setting-item">
+            <label>Language</label>
+            <select
+              value={settings.language}
+              onChange={(e) => setLanguage(e.target.value)}
+              disabled={!settings.enabled}
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.tag} value={lang.tag}>{lang.label}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Speech Rate */}
           <div className="voice-setting-item">
             <label>Speech Rate</label>
@@ -109,9 +180,9 @@ export function VoiceSettingsPanel() {
             </span>
           </div>
 
-          {/* Speech Pitch */}
+          {/* Speech Pitch (browser voice only — cloud voices define their own) */}
           <div className="voice-setting-item">
-            <label>Speech Pitch</label>
+            <label>Speech Pitch (browser voice)</label>
             <input
               type="range"
               min="0.5"

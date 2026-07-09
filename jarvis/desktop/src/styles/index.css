@@ -14,12 +14,13 @@
    ============================================================================ */
 
 :root {
-  /* Core Palette - Cinematic Blue/Cyan */
-  --j-primary: #00F0FF;
-  --j-primary-dim: rgba(0, 240, 255, 0.6);
-  --j-primary-glow: rgba(0, 240, 255, 0.15);
-  --j-secondary: #7000FF;
-  --j-secondary-dim: rgba(112, 0, 255, 0.6);
+  /* Core Palette - Executive Turquoise/Purple (owner directive 2026-07-09) */
+  --j-primary: #14E0C8;
+  --j-primary-dim: rgba(20, 224, 200, 0.6);
+  --j-primary-glow: rgba(20, 224, 200, 0.15);
+  --j-primary-deep: #0FA396;
+  --j-secondary: #9B5CFF;
+  --j-secondary-dim: rgba(155, 92, 255, 0.6);
   
   /* Accent Colors */
   --j-success: #00FF88;
@@ -32,7 +33,7 @@
   --j-bg-secondary: #0A0A0F;
   --j-bg-tertiary: #12121A;
   --j-bg-panel: rgba(10, 10, 15, 0.85);
-  --j-bg-panel-border: rgba(0, 240, 255, 0.1);
+  --j-bg-panel-border: rgba(20, 224, 200, 0.1);
   
   /* Text Colors */
   --j-text-primary: #FFFFFF;
@@ -41,9 +42,9 @@
   --j-text-accent: var(--j-primary);
   
   /* HUD Colors */
-  --j-hud-line: rgba(0, 240, 255, 0.3);
-  --j-hud-line-dim: rgba(0, 240, 255, 0.1);
-  --j-hud-grid: rgba(0, 240, 255, 0.05);
+  --j-hud-line: rgba(20, 224, 200, 0.3);
+  --j-hud-line-dim: rgba(20, 224, 200, 0.1);
+  --j-hud-grid: rgba(20, 224, 200, 0.05);
   
   /* Animation Timing */
   --j-duration-instant: 100ms;
@@ -92,8 +93,8 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
   background: 
-    radial-gradient(ellipse 80% 50% at 50% 50%, rgba(0, 240, 255, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 50% 60%, rgba(112, 0, 255, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 50%, rgba(20, 224, 200, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 60%, rgba(155, 92, 255, 0.02) 0%, transparent 50%),
     var(--j-bg-primary);
 }
 
@@ -163,6 +164,11 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* The auto grid row must never collapse below the visualization design
+     height: full-bleed modes (wave/HUD/ambient) use height:100%, and a
+     collapsed row would push the mode selector under the footer overlay,
+     making its bottom buttons unclickable. */
+  min-height: 460px;
 }
 
 .jarvis-right-panel {
@@ -237,6 +243,21 @@ html, body, #root {
 .hud-panel-corner.br { bottom: -1px; right: -1px; border-left: none; border-top: none; }
 
 /* ============================================================================
+   KIAROS FACE - Executive Interface (default mode)
+   ============================================================================ */
+
+.kiaros-face-container {
+  position: relative;
+  width: 440px;
+  height: 460px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 40px var(--j-primary-glow))
+    drop-shadow(0 0 80px rgba(155, 92, 255, 0.08));
+}
+
+/* ============================================================================
    JARVIS ORB - Premium Cinematic Version
    ============================================================================ */
 
@@ -260,7 +281,7 @@ html, body, #root {
   box-shadow: 
     0 0 60px var(--j-primary-glow),
     0 0 120px var(--j-primary-glow),
-    0 0 180px rgba(112, 0, 255, 0.1),
+    0 0 180px rgba(155, 92, 255, 0.1),
     inset 0 0 60px rgba(255, 255, 255, 0.2);
   animation: orb-breathe var(--j-duration-ambient) ease-in-out infinite;
 }
@@ -536,8 +557,8 @@ html, body, #root {
   position: absolute;
   inset: 0;
   background: 
-    radial-gradient(ellipse at 20% 80%, rgba(0, 240, 255, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(112, 0, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(20, 224, 200, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(155, 92, 255, 0.05) 0%, transparent 50%),
     var(--j-bg-primary);
   animation: ambient-shift 20s ease-in-out infinite;
 }
@@ -617,15 +638,15 @@ html, body, #root {
 
 .message.user {
   align-self: flex-end;
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 240, 255, 0.05));
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  background: linear-gradient(135deg, rgba(20, 224, 200, 0.15), rgba(20, 224, 200, 0.05));
+  border: 1px solid rgba(20, 224, 200, 0.2);
   color: var(--j-text-primary);
 }
 
 .message.jarvis {
   align-self: flex-start;
-  background: linear-gradient(135deg, rgba(112, 0, 255, 0.15), rgba(112, 0, 255, 0.05));
-  border: 1px solid rgba(112, 0, 255, 0.2);
+  background: linear-gradient(135deg, rgba(155, 92, 255, 0.15), rgba(155, 92, 255, 0.05));
+  border: 1px solid rgba(155, 92, 255, 0.2);
   color: var(--j-text-primary);
 }
 
@@ -771,7 +792,7 @@ html, body, #root {
 .mode-btn.active {
   color: var(--j-text-primary);
   border-color: var(--j-primary);
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(20, 224, 200, 0.1);
   box-shadow: 0 0 20px var(--j-primary-glow);
 }
 
@@ -878,7 +899,7 @@ html, body, #root {
 }
 
 .item-badge.pending { background: rgba(255, 184, 0, 0.2); color: var(--j-warning); }
-.item-badge.active { background: rgba(0, 240, 255, 0.2); color: var(--j-primary); }
+.item-badge.active { background: rgba(20, 224, 200, 0.2); color: var(--j-primary); }
 .item-badge.completed { background: rgba(0, 255, 136, 0.2); color: var(--j-success); }
 
 /* ============================================================================
@@ -963,7 +984,7 @@ html, body, #root {
   padding: 0.5rem 1rem;
   min-width: 44px;
   min-height: 44px;
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(20, 224, 200, 0.1);
   border: 1px solid var(--j-bg-panel-border);
   border-radius: 0.5rem;
   color: var(--j-primary);
@@ -975,7 +996,7 @@ html, body, #root {
 }
 
 .voice-button:hover {
-  background: rgba(0, 240, 255, 0.2);
+  background: rgba(20, 224, 200, 0.2);
   border-color: var(--j-primary-dim);
 }
 
@@ -1012,7 +1033,7 @@ html, body, #root {
   align-items: center;
   gap: 0.25rem;
   padding: 0.25rem 0.5rem;
-  background: rgba(0, 240, 255, 0.05);
+  background: rgba(20, 224, 200, 0.05);
   border-radius: 0.25rem;
   color: var(--j-text-muted);
 }

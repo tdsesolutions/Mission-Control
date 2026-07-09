@@ -1,8 +1,8 @@
 # Project Constitution
 
 **Project:** Kiaros / Mission Control / OpenClaw
-**Version:** 1.0
-**Date:** 2026-07-04
+**Version:** 1.3
+**Date:** 2026-07-09
 **Status:** BINDING — supersedes memory, chat history, and assumptions
 **Source:** Phase 1 Architecture Audit (2026-07-04)
 
@@ -32,12 +32,16 @@ All intent flows through exactly one chain:
 Owner (voice or text)
   → Kiaros Desktop (port 3011)
     → Kiaros Core (port 3010)
-      → Mission Control (port 3002)
-        → Approval Engine        [SPECIFIED, NOT YET IMPLEMENTED]
+      → Approval Engine          [IMPLEMENTED — every dispatch decided here]
+        → Mission Control (port 3002)   [task creation IMPLEMENTED 2026-07-09]
           → OpenClaw Gateway (port 18789, loopback only)
             → OpenClaw Main agent ("main", persona Kiaros)
               → Department agents / skills / tools
 ```
+
+(The Approval Engine was originally specified inside Mission Control; the
+owner-approved implementation places it in Kiaros Core, ahead of the MC
+hop, so the decision happens before anything leaves Kiaros.)
 
 Hard rules:
 
@@ -70,14 +74,20 @@ prevent this permanently:
    statuses: **IMPLEMENTED** (code exists and was verified running),
    **PARTIAL** (code exists, incomplete or unverified), **SPECIFIED** (design
    docs only, zero code), **PLANNED** (roadmap only).
-2. The following are **SPECIFIED, NOT IMPLEMENTED**, and no document may
-   imply otherwise (updated 2026-07-07):
-   - Kiaros Core → Mission Control task/project **write** integration
-     (owner-gated; reads are IMPLEMENTED as of 2026-07-07 via read-through
-     proxies with MC as the sole system of record)
+2. Status register (updated 2026-07-09):
+   - Kiaros Core → Mission Control task **creation** is **IMPLEMENTED**
+     (owner directive 2026-07-09): the TaskDispatcher
+     (`jarvis/core/src/services/dispatch/`) obtains an Approval Engine
+     decision for EVERY request, auto-creates MC tasks only for `approved`
+     (levels 0–1), holds `requires_owner_approval` (levels 2–3) in a
+     persisted queue until the owner resolves it, and never dispatches
+     rejected/unclear requests. Task **update/delete** from Kiaros remains
+     out of scope by design (MC's own UI owns task lifecycle edits); those
+     endpoints answer 501 honestly. Reads remain read-through proxies with
+     MC as the sole system of record.
    - Memory Service (3012), Voice Service (3013), Computer Control (3014),
-     Service Monitor (3015), Notification Service (3016) — reserved ports,
-     not requirements
+     Service Monitor (3015), Notification Service (3016) — **SPECIFIED
+     only**: reserved ports, not requirements.
 
    The launcher scripts (`launch-ai-services.sh` / `stop-ai-services.sh` /
    `check-ai-services.sh`) are **IMPLEMENTED** (2026-07-07) at
@@ -89,31 +99,45 @@ prevent this permanently:
    as a deterministic decision authority in Kiaros Core
    (`jarvis/core/src/services/approval/`), classifying requests as
    approved / rejected / requires_clarification / requires_owner_approval.
-   It never executes work, never modifies Mission Control, and never
-   invokes OpenClaw. **Implemented ≠ wired:** no execution path consults
-   it yet, because no execution path exists.
+   It never executes work itself. **As of 2026-07-09 it is WIRED:** the
+   TaskDispatcher and the conversation pipeline consult it on every
+   action-class request, and its decision is the sole authority over
+   whether a Mission Control task is created.
 3. A phase may only be declared COMPLETE when its validation report shows the
    deliverable actually running (build passing, endpoint responding), not
    merely files existing.
 
 ## Article V — Safety Posture
 
-1. The Approval Engine (implemented Phase 6) is the safety gate. **No
-   autonomous execution path may be wired from Kiaros into Mission Control
-   task creation except through the Approval Engine, and only in a future
-   owner-approved phase.** Kiaros may read; Kiaros may not yet write tasks.
-   Any future execution path that bypasses the engine is FORBIDDEN
-   (CHANGE_CONTROL.md class).
-2. Voice audio never leaves the local machine. Recognition and synthesis use
-   the browser Web Speech API; only recognized text travels, and only to
-   localhost services.
-3. Kiaros Core (3010) currently has no authentication. It must remain bound
-   to localhost and must not gain any write powers over Mission Control until
-   authentication is added in an approved phase.
+1. The Approval Engine is the safety gate, and as of 2026-07-09 the
+   owner-approved execution path exists: **Kiaros may create Mission
+   Control tasks solely through the TaskDispatcher, which obtains an
+   Approval Engine decision for every request.** Auto-dispatch applies only
+   to `approved` decisions (levels 0–1); levels 2–3 require explicit owner
+   approval (Desktop "Awaiting Your Approval" panel or
+   `/api/v1/approval/pending` API); level 4 / dangerous requests are
+   rejected outright. **Any execution path that bypasses the engine — any
+   call to `MissionControlClient.createTask` from outside the
+   TaskDispatcher — is FORBIDDEN** (CHANGE_CONTROL.md class). Kiaros never
+   updates or deletes MC tasks, and never contacts the OpenClaw Gateway
+   for execution (MC owns dispatch to the `main` agent).
+2. Voice privacy follows VOICE_ARCHITECTURE.md v2.0 (owner-amended
+   2026-07-09): the default voice pipeline is the browser Web Speech API
+   (audio never leaves the machine). Cloud voice (Deepgram STT relay,
+   ElevenLabs TTS proxy) is **owner-opt-in**: keys live in `jarvis/.env`
+   only, audio/text is proxied through Kiaros Core, keys never reach the
+   Desktop, and unset keys mean the cloud engines simply do not exist at
+   runtime (automatic browser fallback).
+3. Kiaros Core (3010) supports optional shared-secret authentication
+   (`KIAROS_CORE_TOKEN`, implemented 2026-07-07) covering `/api/v1/*` and
+   both WebSocket paths; unset (the default) means open on localhost only.
+   The service must remain bound to localhost. If it is ever exposed
+   beyond localhost, setting the token becomes MANDATORY because the API
+   now carries write powers (task creation, owner approvals).
 
 ## Article VI — Documentation as Law
 
-1. The ten governance documents created in Phase 2 (this Constitution plus
+1. The governance documents created in Phase 2 (this Constitution plus
    SYSTEM_ARCHITECTURE, COMPONENT_OWNERSHIP, VOICE_ARCHITECTURE,
    MISSION_CONTROL_ARCHITECTURE, OPENCLAW_INTEGRATION, STATE_MANAGEMENT,
    MESSAGE_ROUTING, CHANGE_CONTROL, CURRENT_PHASE) are the permanent record.
@@ -138,3 +162,4 @@ Amendments to this Constitution require:
 | 1.0 | 2026-07-04 | Initial constitution (Phase 2 deliverable) |
 | 1.1 | 2026-07-05 | Art. IV/V updated for the implemented Approval Engine (owner-approved Phase 6): engine is a deterministic decision authority in Kiaros Core; execution wiring remains forbidden outside a future owner-approved phase that routes through it |
 | 1.2 | 2026-07-07 | Art. IV status updates under the project-completion directive: MC READS implemented (writes remain owner-gated); launcher scripts implemented at jarvis/scripts under constitutional constraints; ports 3012–3016 clarified as reservations, not requirements |
+| 1.3 | 2026-07-09 | Owner production directive ("standalone Professional Software Engineer from a single request"): Art. II diagram corrected (Approval Engine implemented, sits in Kiaros Core ahead of MC); Art. IV — MC task CREATION implemented via TaskDispatcher (engine consulted on every request; update/delete stays out of scope); Art. V.1 — sanctioned write path defined, engine bypass remains FORBIDDEN; Art. V.2 — voice privacy aligned with VOICE_ARCHITECTURE v2.0 (owner-opt-in cloud voice, proxied, keys server-side); Art. V.3 — optional Core auth acknowledged, token mandatory if ever non-localhost; Art. VI "ten documents" count fixed |

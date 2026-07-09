@@ -1,50 +1,65 @@
 /**
  * Events Route
- * Handle system events and notifications
+ * Handle system events and notifications — backed by the shared EventBus,
+ * so this endpoint returns the same event history the WebSocket broadcasts
+ * from, and events posted here reach every bus subscriber.
  */
 
 import { Router } from 'express';
-import { logger } from '../../utils/logger.js';
+import { getEventBus } from '../../services/eventBus.js';
 import type { SystemEvent, SystemEventType } from '../../../../shared/types/index.js';
 
 const router = Router();
 
-// In-memory event store (will integrate with event bus)
-const events: SystemEvent[] = [];
-const MAX_EVENTS = 1000;
+const VALID_SEVERITIES = ['info', 'warning', 'error', 'critical'] as const;
+type Severity = (typeof VALID_SEVERITIES)[number];
 
 router.get('/', (req, res) => {
+  const bus = getEventBus();
+  if (!bus) {
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'EVENT_BUS_UNAVAILABLE',
+        message: 'Event bus is not initialized',
+      },
+      timestamp: new Date(),
+      requestId: req.headers['x-request-id'] || 'unknown',
+    });
+    return;
+  }
+
   const type = req.query.type as SystemEventType | undefined;
   const severity = req.query.severity as string | undefined;
   const limit = parseInt(req.query.limit as string) || 50;
-  
-  let eventList = [...events];
-  
-  if (type) {
-    eventList = eventList.filter(e => e.type === type);
-  }
-  
-  if (severity) {
-    eventList = eventList.filter(e => e.severity === severity);
-  }
-  
-  // Sort by timestamp descending
-  eventList.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  
-  // Apply limit
-  eventList = eventList.slice(0, limit);
-  
+
+  const events: SystemEvent[] = bus.getEvents({ type, severity, limit });
+
   res.json({
     success: true,
-    data: eventList,
+    data: events,
     timestamp: new Date(),
     requestId: req.headers['x-request-id'] || 'unknown',
   });
 });
 
 router.post('/', (req, res) => {
+  const bus = getEventBus();
+  if (!bus) {
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'EVENT_BUS_UNAVAILABLE',
+        message: 'Event bus is not initialized',
+      },
+      timestamp: new Date(),
+      requestId: req.headers['x-request-id'] || 'unknown',
+    });
+    return;
+  }
+
   const { type, severity, source, message, data } = req.body;
-  
+
   if (!type || !message) {
     res.status(400).json({
       success: false,
@@ -57,26 +72,28 @@ router.post('/', (req, res) => {
     });
     return;
   }
-  
-  const event: SystemEvent = {
-    id: `evt_${Date.now()}`,
-    type: type as SystemEventType,
-    severity: severity || 'info',
-    source: source || 'jarvis-core',
-    message,
-    data,
-    timestamp: new Date(),
-  };
-  
-  events.push(event);
-  
-  // Trim events if exceeding max
-  if (events.length > MAX_EVENTS) {
-    events.shift();
+
+  if (severity !== undefined && !VALID_SEVERITIES.includes(severity)) {
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_SEVERITY',
+        message: `Invalid severity. Valid severities: ${VALID_SEVERITIES.join(', ')}`,
+      },
+      timestamp: new Date(),
+      requestId: req.headers['x-request-id'] || 'unknown',
+    });
+    return;
   }
-  
-  logger.info(`Event recorded: ${type} - ${message}`);
-  
+
+  const event = bus.emitEvent(
+    type as SystemEventType,
+    (severity as Severity) || 'info',
+    source || 'jarvis-core',
+    message,
+    data
+  );
+
   res.status(201).json({
     success: true,
     data: event,

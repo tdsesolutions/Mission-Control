@@ -82,9 +82,9 @@ router.post('/message', async (req, res) => {
   
   logger.info(`User message received: ${content.substring(0, 100)}...`);
 
-  // Process through the Conversation Manager (LLM provider with template
-  // fallback — see services/llm). History includes the just-stored user
-  // message, so it arrives as the final turn.
+  // Process through the Conversation Manager (LLM provider with an honest
+  // degraded reply on failure — see services/llm). History includes the
+  // just-stored user message, so it arrives as the final turn.
   const result = await conversationManager.processMessage({
     content: content.trim(),
     userId: 'teddie',
@@ -128,6 +128,7 @@ router.post('/message', async (req, res) => {
         provider: result.provider ?? null,
         model: result.model ?? null,
         approval: result.approval ?? null,
+        dispatch: result.dispatch ?? null,
       },
     },
     timestamp: new Date(),

@@ -3,6 +3,10 @@
  * Manages voice configuration and preferences
  */
 
+/** 'auto' = cloud provider when configured & healthy, else browser. */
+export type SttProviderPreference = 'auto' | 'browser' | 'deepgram';
+export type TtsProviderPreference = 'auto' | 'browser' | 'elevenlabs';
+
 export interface VoiceSettings {
   enabled: boolean;
   muted: boolean;
@@ -13,6 +17,10 @@ export interface VoiceSettings {
   pitch: number;
   volume: number;
   voiceURI: string | null;
+  sttProvider: SttProviderPreference;
+  ttsProvider: TtsProviderPreference;
+  /** BCP-47 speech-recognition language. */
+  language: string;
 }
 
 const DEFAULT_SETTINGS: VoiceSettings = {
@@ -24,6 +32,9 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   pitch: 1.0,
   volume: 1.0,
   voiceURI: null,
+  sttProvider: 'auto',
+  ttsProvider: 'auto',
+  language: 'en-US',
 };
 
 const STORAGE_KEY = 'kiaros_voice_settings';
@@ -105,6 +116,21 @@ export class VoiceSettingsManager {
 
   setVoiceURI(voiceURI: string): void {
     this.settings.voiceURI = voiceURI;
+    this.saveSettings();
+  }
+
+  setSttProvider(provider: SttProviderPreference): void {
+    this.settings.sttProvider = provider;
+    this.saveSettings();
+  }
+
+  setTtsProvider(provider: TtsProviderPreference): void {
+    this.settings.ttsProvider = provider;
+    this.saveSettings();
+  }
+
+  setLanguage(language: string): void {
+    this.settings.language = language || 'en-US';
     this.saveSettings();
   }
 
