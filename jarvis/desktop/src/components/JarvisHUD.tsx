@@ -230,7 +230,7 @@ function MetricCard({ icon, label, value, subtext, type = 'neutral' }: {
   type?: 'success' | 'neutral';
 }) {
   return (
-    <div className="flex items-center gap-4 p-4 bg-[rgba(255,255,255,0.03)] rounded-lg border border-[var(--j-bg-panel-border)]">
+    <div className="metric-card flex items-center gap-4 p-4">
       <div className={`${type === 'success' ? 'text-[var(--j-success)]' : 'text-[var(--j-primary)]'}`}>
         {icon}
       </div>

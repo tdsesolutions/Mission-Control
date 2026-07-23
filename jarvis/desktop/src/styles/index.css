@@ -1621,3 +1621,147 @@ html, body, #root {
     display: none;
   }
 }
+
+/* ============================================================================
+   PHASE C — DEEP PASS (2026-07-23)
+   The remaining surfaces join the node-card language: mode selector, voice
+   settings, voice status, HUD metric tiles. Plus interaction polish. All
+   CSS-only; reduced motion honored at the bottom.
+   ============================================================================ */
+
+/* Mode selector + voice settings become glass node-cards (default cyan) */
+.mode-selector,
+.voice-settings-panel {
+  border-radius: 18px;
+  border: 1.5px solid rgba(var(--card-hue), 0.32);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.008) 40%),
+    linear-gradient(180deg, rgba(14, 16, 26, 0.94), rgba(7, 8, 14, 0.9));
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 0 24px rgba(var(--card-hue), 0.08),
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Escape the conversation container's overflow clip (the node-card rounds
+   corners with overflow:hidden, which swallowed the upward-opening popup —
+   in HUD mode the container is only the footer strip, so the panel was
+   invisible). Fixed positioning anchors it above the footer instead, and the
+   height cap keeps it inside any viewport. */
+.voice-settings-panel {
+  position: fixed;
+  bottom: 84px;
+  right: 24px;
+  max-height: min(64vh, 560px);
+  overflow-y: auto;
+}
+
+.voice-settings-header {
+  color: rgb(var(--card-hue));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(var(--card-hue), 0.14);
+}
+
+/* Form controls inside voice settings: glass fields with identity focus */
+.voice-settings-panel select {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  color: var(--j-text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(var(--card-hue), 0.22);
+  transition: border-color var(--j-duration-normal) var(--j-easing-smooth),
+              box-shadow var(--j-duration-normal) var(--j-easing-smooth);
+}
+
+.voice-settings-panel select:focus {
+  outline: none;
+  border-color: rgba(var(--card-hue), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--card-hue), 0.12);
+}
+
+.voice-settings-panel input[type='checkbox'] {
+  accent-color: rgb(var(--card-hue));
+}
+
+/* Voice status pill matches the state-chip glass language */
+.voice-status-indicator {
+  border: 1px solid rgba(var(--card-hue), 0.2);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), transparent 60%),
+    rgba(var(--card-hue), 0.05);
+  backdrop-filter: blur(12px);
+}
+
+/* HUD metric tiles: mini node-cards with a lift on hover */
+.metric-card {
+  border-radius: 16px;
+  border: 1px solid rgba(var(--card-hue), 0.24);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.006) 40%),
+    rgba(10, 12, 20, 0.75);
+  box-shadow:
+    0 0 18px rgba(var(--card-hue), 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color var(--j-duration-normal) var(--j-easing-smooth),
+              box-shadow var(--j-duration-normal) var(--j-easing-smooth),
+              transform var(--j-duration-normal) var(--j-easing-smooth);
+}
+
+.metric-card:hover {
+  border-color: rgba(var(--card-hue), 0.5);
+  box-shadow:
+    0 0 28px rgba(var(--card-hue), 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+/* --- Interaction polish (Phase C motion) --- */
+
+/* Panels rise into place with a soft stagger on mount */
+.hud-panel,
+.conversation-container {
+  animation: j-panel-rise 0.45s var(--j-easing-smooth) both;
+}
+
+.hud-panel:nth-of-type(2) { animation-delay: 60ms; }
+.hud-panel:nth-of-type(3) { animation-delay: 120ms; }
+
+@keyframes j-panel-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Service rows: identity wash sweeps in from the left on hover */
+.service-row {
+  border-radius: 10px;
+  margin: 0 -0.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  transition: background-color var(--j-duration-fast, 0.15s) ease;
+}
+
+.service-row:hover {
+  background: linear-gradient(90deg, rgba(var(--card-hue), 0.07), transparent 70%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-panel,
+  .conversation-container {
+    animation: none;
+  }
+  .metric-card,
+  .metric-card:hover {
+    transition: none;
+    transform: none;
+  }
+}

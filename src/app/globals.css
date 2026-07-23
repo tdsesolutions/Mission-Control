@@ -967,52 +967,6 @@ nav button[aria-current='page']::before {
 }
 
 /* ============================================================================
-   Phase A — Node-card system (owner-approved 2026-07-22)
-   Identity hue tokens + the glowing glass tile primitive from the reference
-   design. Utilities only: applying them to panels/widgets is Phase B, so
-   nothing in the existing 45 panels changes until explicitly opted in.
-   ============================================================================ */
-
-:root {
-  --mc-hue-system: 187 82% 53%;  /* turquoise — system/overview/gateways */
-  --mc-hue-exec: 263 90% 66%;    /* purple — tasks/memory/automation */
-  --mc-hue-comms: 142 71% 55%;   /* green — chat/channels/sessions */
-  --mc-hue-data: 172 66% 50%;    /* teal — logs/cost/audit */
-  --mc-hue-brain: 42 92% 60%;    /* gold — coordinator/agent-brain */
-  --mc-card-hue: var(--mc-hue-system);
-}
-
-.mc-node-card {
-  border-radius: 20px;
-  background:
-    linear-gradient(165deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.008) 40%),
-    hsl(var(--card) / 0.85);
-  border: 1.5px solid hsl(var(--mc-card-hue) / 0.38);
-  box-shadow:
-    0 0 24px hsl(var(--mc-card-hue) / 0.10),
-    0 14px 38px rgb(0 0 0 / 0.42),
-    inset 0 1px 0 rgb(255 255 255 / 0.06);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.mc-node-card:hover {
-  border-color: hsl(var(--mc-card-hue) / 0.6);
-  box-shadow:
-    0 0 38px hsl(var(--mc-card-hue) / 0.16),
-    0 14px 38px rgb(0 0 0 / 0.42),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-}
-
-.mc-node-card[data-hue='exec'] { --mc-card-hue: var(--mc-hue-exec); }
-.mc-node-card[data-hue='comms'] { --mc-card-hue: var(--mc-hue-comms); }
-.mc-node-card[data-hue='data'] { --mc-card-hue: var(--mc-hue-data); }
-.mc-node-card[data-hue='brain'] { --mc-card-hue: var(--mc-hue-brain); }
-
-@media (prefers-reduced-motion: reduce) {
-  .mc-node-card { transition: none; }
-}
-
-/* ============================================================================
    Phase A — system-map node-card primitive (2026-07-22)
    Same visual language as Kiaros: glass tile, luminous identity border,
    soft hue glow. Inert until applied (Phase B adds the classes/hues to
@@ -1084,3 +1038,82 @@ nav button[aria-current='page']::before {
 .nav-group-observe  { color: hsl(172 66% 50% / 0.75); }
 .nav-group-automate { color: hsl(263 90% 66% / 0.75); }
 .nav-group-admin    { color: hsl(40 90% 61% / 0.75); }
+
+/* ============================================================================
+   Phase C — panel identity rollout (2026-07-23)
+   Every panel inherits its system-map identity from one data-hue attribute on
+   the shared ContentRouter wrapper: borders, focus rings, and a top hairline
+   all take the hue via CSS custom-property cascade. Zero per-panel edits —
+   inner cards pick it up through the --border/--ring tokens they already use.
+   ============================================================================ */
+
+.mc-panel-transition {
+  position: relative;
+  --node-hue: 187 82% 53%; /* default: void cyan */
+}
+
+/* Identity hue per panel category */
+.mc-panel-transition[data-hue='purple'] { --node-hue: 263 90% 66%; }
+.mc-panel-transition[data-hue='green']  { --node-hue: 145 65% 55%; }
+.mc-panel-transition[data-hue='gold']   { --node-hue: 40 90% 61%;  }
+.mc-panel-transition[data-hue='teal']   { --node-hue: 172 66% 50%; }
+
+/* Dark theme only: cascade the hue into the border/ring tokens (triples, so
+   hsl(var(--border)) keeps composing). Lightness stays near the neutral dark
+   border's so the tint reads as identity, not decoration. The light theme's
+   near-white borders are left alone. */
+.dark .mc-panel-transition[data-hue='purple'] { --border: 263 24% 18%; --ring: 263 90% 66%; }
+.dark .mc-panel-transition[data-hue='green']  { --border: 145 22% 15%; --ring: 145 65% 55%; }
+.dark .mc-panel-transition[data-hue='gold']   { --border: 40 26% 15%;  --ring: 40 90% 61%; }
+.dark .mc-panel-transition[data-hue='teal']   { --border: 172 28% 15%; --ring: 172 66% 50%; }
+
+/* Top hairline + soft identity glow at the panel's crown */
+.mc-panel-transition::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 8%, hsl(var(--node-hue) / 0.45), transparent 92%) top / 100% 1px no-repeat,
+    radial-gradient(60% 100px at 50% 0%, hsl(var(--node-hue) / 0.05), transparent);
+}
+
+/* Phase C — motion polish: dashboard widgets cascade into place. The delay
+   is per-cell so the grid reads as the system map assembling itself. */
+.mc-widget-cell {
+  animation: mc-panel-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mc-widget-cell:nth-child(2)  { animation-delay: 40ms; }
+.mc-widget-cell:nth-child(3)  { animation-delay: 80ms; }
+.mc-widget-cell:nth-child(4)  { animation-delay: 120ms; }
+.mc-widget-cell:nth-child(5)  { animation-delay: 160ms; }
+.mc-widget-cell:nth-child(6)  { animation-delay: 200ms; }
+.mc-widget-cell:nth-child(7)  { animation-delay: 240ms; }
+.mc-widget-cell:nth-child(8)  { animation-delay: 280ms; }
+.mc-widget-cell:nth-child(n+9) { animation-delay: 320ms; }
+
+/* Widget cells lift slightly as their glow brightens (border/glow transition
+   already lives on the Phase B rule for the inner chrome). */
+.mc-widget-cell > :first-child {
+  transform: translateY(0);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.mc-widget-cell:hover > :first-child {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-widget-cell {
+    animation: none;
+  }
+  .mc-widget-cell > :first-child,
+  .mc-widget-cell:hover > :first-child {
+    transition: none;
+    transform: none;
+  }
+}

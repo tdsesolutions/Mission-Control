@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Settings } from 'lucide-react';
 import { useVoiceStore } from '../stores/voiceStore';
 
@@ -52,7 +53,11 @@ export function VoiceSettingsPanel() {
         <Settings size={16} />
       </button>
 
-      {isOpen && (
+      {/* Portal to <body>: the conversation container's backdrop-filter creates
+          a stacking context that painted the fixed-position panel underneath
+          the center workspace (and its overflow clip hid it entirely in HUD
+          mode). Escaping the subtree is the only reliable fix. */}
+      {isOpen && createPortal(
         <div className="voice-settings-panel">
           <div className="voice-settings-header">
             <span>Voice Settings</span>
@@ -213,7 +218,8 @@ export function VoiceSettingsPanel() {
               {Math.round(settings.volume * 100)}%
             </span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

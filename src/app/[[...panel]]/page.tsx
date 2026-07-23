@@ -470,8 +470,13 @@ export default function Home() {
         >
           <div aria-live="polite" className="flex flex-col min-h-full">
             <ErrorBoundary key={activeTab}>
-              {/* Keyed on the tab so every panel switch replays the entrance. */}
-              <div className="mc-panel-transition flex flex-col min-h-full">
+              {/* Keyed on the tab so every panel switch replays the entrance.
+                  data-hue cascades the panel's identity color (Phase C) into
+                  borders/rings/hairline via CSS — panels need no edits. */}
+              <div
+                className="mc-panel-transition flex flex-col min-h-full"
+                data-hue={PANEL_HUES[activeTab]}
+              >
                 <ContentRouter tab={activeTab} />
               </div>
             </ErrorBoundary>
@@ -522,6 +527,38 @@ export default function Home() {
 const ESSENTIAL_PANELS = new Set([
   'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
 ])
+
+/* Phase C — panel identity hues, aligned with the nav-group tints
+   (observe=teal, automate=purple, admin=gold) and the system-map semantics
+   from Phase A (gold=agent-brain, green=comms, purple=tasks/memory).
+   Unlisted tabs inherit the default turquoise. */
+const PANEL_HUES: Record<string, string> = {
+  agents: 'gold',
+  tasks: 'purple',
+  chat: 'green',
+  channels: 'green',
+  skills: 'purple',
+  memory: 'purple',
+  activity: 'teal',
+  logs: 'teal',
+  'cost-tracker': 'teal',
+  nodes: 'teal',
+  'exec-approvals': 'teal',
+  office: 'teal',
+  monitor: 'teal',
+  cron: 'purple',
+  webhooks: 'purple',
+  alerts: 'purple',
+  github: 'purple',
+  security: 'gold',
+  users: 'gold',
+  audit: 'gold',
+  gateways: 'gold',
+  'gateway-config': 'gold',
+  integrations: 'gold',
+  debug: 'gold',
+  settings: 'gold',
+}
 
 function ContentRouter({ tab }: { tab: string }) {
   const tp = useTranslations('page')
