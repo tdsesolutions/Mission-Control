@@ -6,11 +6,20 @@
  */
 
 import path from 'path';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serviceRoot = path.resolve(__dirname, '..', '..');
+
+// Walk up to the directory containing package.json so this resolves the same
+// from src/ (tsx dev) and dist/src/ (compiled) — a fixed ../.. lands one
+// level too deep when running the build.
+let pkgRoot = __dirname;
+while (!existsSync(path.join(pkgRoot, 'package.json')) && pkgRoot !== path.dirname(pkgRoot)) {
+  pkgRoot = path.dirname(pkgRoot);
+}
+const serviceRoot = path.dirname(pkgRoot); // jarvis/
 
 // Shared jarvis/.env (same file Core reads) so keys/config stay in one place.
 dotenv.config({ path: path.join(serviceRoot, '.env') });
