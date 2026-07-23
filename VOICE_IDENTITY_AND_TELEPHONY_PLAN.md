@@ -89,76 +89,96 @@ defeats replay.
 
 ---
 
-## Track E — Kiaros on a Phone Number (Telephony Gateway)
+## Track E — Call Kiaros From Your Phone (Kiaros Pocket)
 
-### E1. Provider recommendation (OWNER DECISION #2)
+> **Revision 2026-07-23 (owner directive: "do this for free").** A real
+> PSTN phone number with programmatic control **cannot be had for free** —
+> recorded honestly: Twilio/Telnyx numbers cost ~$1–2/mo + per-minute;
+> Twilio's trial credit is temporary and stamps a trial message on every
+> call; Google Voice and consumer free-number apps expose no call API.
+> The free design below delivers the same experience — pull out the phone,
+> tap "Call Kiaros", talk, work gets done — over your own private network
+> instead of the phone network. The original PSTN design is preserved in
+> §E6 as the paid upgrade path, unlocked later by a single gateway service
+> with zero rework of Tracks D or E.
 
-**Twilio Programmable Voice + Media Streams** (bidirectional WebSocket
-audio). Reasons: mature, cheap to start, and — decisive — its 8 kHz μ-law
-stream format is **natively supported on both ends of our existing stack**
-(Deepgram accepts `mulaw/8000` streaming input; ElevenLabs emits
-`ulaw_8000` directly). No transcoding layer, and Kiaros Core keeps owning
-the whole pipeline, per the model-agnostic mandate.
-
-Alternatives, recorded: Twilio ConversationRelay (Twilio does STT/TTS —
-simpler but surrenders pipeline control), Telnyx (cheaper minutes, smaller
-ecosystem), raw SIP (max control, max pain). Rough cost at expected usage:
-~$1.15/mo for the number + ~$0.0085/min Twilio + existing
-Deepgram/ElevenLabs streaming rates.
-
-### E2. Architecture
+### E1. Free architecture — a call over your own network
 
 ```
-Owner's phone → Twilio number
-  → webhook (TwiML: <Connect><Stream>)         [signature-validated]
-  → Telephony Gateway (new, port 3011)
-      ├── Twilio Media Streams WS (μ-law 8k, both directions)
-      ├── → Core /ws/voice/stt (Deepgram, mulaw/8000)
-      ├── → Identity Service :3013 (phone-specific voiceprint — see E3)
-      ├── → Core conversation pipeline (same Approval Engine path)
-      └── ← ElevenLabs TTS (ulaw_8000) → caller hears Kiaros
+Owner's phone (any browser; "Add to Home Screen" → feels like an app)
+  → Tailscale (free personal plan; phone and Mac on a private WireGuard net)
+  → Kiaros Desktop mobile view (existing voice loop, mobile layout)
+      ├── STT: browser Web Speech API (free, already the default engine)
+      ├── Identity: Core tees audio → Identity Service :3013 (Track D, free)
+      ├── Core conversation pipeline (same Approval Engine path)
+      └── TTS: browser speechSynthesis (free, already the fallback engine)
 ```
 
-Public reachability (the Mac is behind NAT): **Cloudflare Tunnel**
-(recommended — free, stable hostname, no open ports) exposing ONLY the
-Twilio webhook + media-stream endpoints. ngrok acceptable for the spike;
-not for standing service. (OWNER DECISION #3)
+Why this shape:
 
-### E3. Call security model
+- **$0 forever.** No number rental, no per-minute charges, no cloud STT/TTS
+  required — the two-engine abstraction from VOICE_ARCHITECTURE.md §2 was
+  built for exactly this: browser engines are the free default, cloud
+  engines remain an optional opt-in (Deepgram's one-time $200 signup credit
+  and ElevenLabs' 10k-credit/mo free tier can be layered on later without
+  touching the design).
+- **Nothing public.** Tailscale means no open ports, no public hostname, no
+  webhook surface — strictly safer than the PSTN design. `tailscale serve`
+  provides the valid HTTPS certificate that mobile browsers require for
+  microphone access (`getUserMedia`).
+- **Reuses the existing loop.** The Desktop voice stack (push-to-talk,
+  hands-free conversation mode, echo protection, barge-in) already works in
+  a browser; the build here is a phone-sized surface plus network plumbing,
+  not a new pipeline.
+- **Wideband audio.** Phone-over-internet carries full-quality audio, so
+  Track D's desktop voiceprint transfers as-is — no second narrowband
+  enrollment needed (that requirement existed only for 8 kHz PSTN audio).
 
-1. **Caller-ID allowlist** — only the owner's number(s) get past TwiML;
-   everyone else hears a decline message. Necessary, not sufficient
-   (spoofable).
-2. **Phone voiceprint** — narrowband 8 kHz audio degrades embeddings, so
-   Track D's desktop voiceprint won't transfer cleanly; enrollment happens
-   once **on a call** ("call Kiaros, read 5 phrases"). Same Identity
-   Service, second centroid.
-3. **Spoken PIN or challenge phrase** required before any dispatch-class
-   request on a call.
-4. **Webhook hardening** — X-Twilio-Signature validation on every request,
-   rate limiting, full call audit (caller, duration, transcript, decisions)
-   in JSONL.
+### E2. What "calling" looks like
 
-### E4. Capability tiers on a call (OWNER DECISION #4)
+Home-screen icon "Kiaros" → opens the mobile view → auto-connects →
+"Kiaros here." From there it is the same owner-verified loop as the desk:
+speak requests, hear replies, level-1 work dispatches to Mission Control,
+challenge phrase guards anything higher.
+
+### E3. Call security model (free edition)
+
+1. **Network identity** — only devices on your Tailscale tailnet can reach
+   Kiaros at all. This replaces (and beats) the caller-ID allowlist.
+2. **Voiceprint** — Track D verification runs identically on the phone
+   stream; dispatch still requires `speaker: owner`.
+3. **Challenge phrase / PIN** — unchanged for dispatch-class requests.
+4. **Audit** — same JSONL trail, sessions tagged `source: pocket`.
+
+### E4. Capability tiers (OWNER DECISION #4)
 
 | Tier | Capability | Recommendation |
 |---|---|---|
 | E-1 | Conversation + status readouts (agents, tasks, approvals pending) | Ship first |
-| E-2 | Dispatch level-1 (auto-approvable) tasks after voice + PIN | Second |
+| E-2 | Dispatch level-1 (auto-approvable) tasks after voice verification | Second |
 | E-3 | Approve/deny held level-2 items by voice | Owner's call — recommend **desktop-only** initially |
 
 Level-3 (dangerous) stays desktop-only regardless.
 
 ### E5. Deliverables & order
 
-1. Twilio account + number + Cloudflare Tunnel (owner provisions; keys to
-   `jarvis/.env` only)
-2. Telephony Gateway service: answer call, stream loop, "Kiaros here —
-   hello Teddie" round trip (E-1 conversational tier)
-3. Phone voiceprint enrollment call flow
-4. Dispatch tier E-2 with PIN + challenge; audit trail
-5. E2E proof: real phone call → status readout → level-1 task created in MC
-   → confirmation spoken back
+1. Tailscale on Mac + phone (owner installs; free personal plan);
+   `tailscale serve` fronting Desktop + Core with HTTPS
+2. Mobile-first Kiaros view: full-screen conversation surface, big
+   push-to-talk, hands-free toggle, PWA manifest for the home-screen icon
+3. Wire mobile stream into Track D verification (`source: pocket` tagging)
+4. Tier E-2 dispatch + challenge phrase + audit
+5. E2E proof: phone on cellular (Tailscale up) → "Call Kiaros" → status
+   readout → level-1 task created in MC → confirmation spoken back
+
+### E6. Paid upgrade path (deferred, unbuilt)
+
+If a real dialable number is ever wanted (calling from someone else's
+phone, no app/tailnet available): the original Twilio Media Streams design
+— gateway on port 3011, TwiML `<Connect><Stream>`, μ-law 8 kHz natively
+accepted by Deepgram and emitted by ElevenLabs, Cloudflare Tunnel ingress,
+X-Twilio-Signature validation, narrowband second voiceprint. ~$1.15/mo +
+usage. Slots in beside Kiaros Pocket without changing it.
 
 ---
 
@@ -177,7 +197,13 @@ flashier feature.
 ## Owner decisions needed before build starts
 
 1. Unknown-voice policy: strict / **guest (recommended)** / challenge
-2. Telephony provider: **Twilio (recommended)** / Telnyx / ConversationRelay
-3. Tunnel: **Cloudflare Tunnel (recommended)** / ngrok / VPS relay
+2. ~~Telephony provider~~ RESOLVED 2026-07-23 by the free mandate: no PSTN
+   provider; Kiaros Pocket over Tailscale (§E1). Twilio preserved as the
+   deferred paid path (§E6)
+3. ~~Tunnel~~ RESOLVED 2026-07-23: Tailscale free personal plan (private
+   tailnet; nothing public). Requires installing Tailscale on the Mac and
+   phone — the one piece of owner-side setup
 4. Phone capability ceiling at launch: **E-1→E-2 (recommended)**, E-3 later
-5. Budget sign-off: ~$2/mo fixed + per-minute usage
+5. ~~Budget~~ RESOLVED 2026-07-23 by owner directive: **$0** — local
+   speaker model, browser speech engines, Tailscale free tier. Optional
+   later add-ons at no cost: Deepgram signup credit, ElevenLabs free tier
