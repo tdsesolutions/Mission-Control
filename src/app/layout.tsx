@@ -100,9 +100,13 @@ export default async function RootLayout({
     <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className="dark" suppressHydrationWarning>
       <head>
         {/* Blocking script to set 'dark' class before first paint, preventing FOUC.
-            Content is a static string literal — no user input, no XSS vector. */}
+            Content is a static string literal — no user input, no XSS vector.
+            suppressHydrationWarning: browsers blank the nonce content attribute
+            after CSP consumes it (spec nonce-hiding), so the DOM never matches
+            the server-rendered value — an expected, benign difference. */}
         <script
           nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
           }}
