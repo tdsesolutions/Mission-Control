@@ -150,15 +150,36 @@ challenge phrase guards anything higher.
 3. **Challenge phrase / PIN** — unchanged for dispatch-class requests.
 4. **Audit** — same JSONL trail, sessions tagged `source: pocket`.
 
-### E4. Capability tiers (OWNER DECISION #4)
+### E4. Capability tiers (OWNER DECISION #4 — RESOLVED 2026-07-23)
 
-| Tier | Capability | Recommendation |
+Owner directive: approvals from the phone are in scope, PIN-protected.
+
+| Tier | Capability | Gate |
 |---|---|---|
-| E-1 | Conversation + status readouts (agents, tasks, approvals pending) | Ship first |
-| E-2 | Dispatch level-1 (auto-approvable) tasks after voice verification | Second |
-| E-3 | Approve/deny held level-2 items by voice | Owner's call — recommend **desktop-only** initially |
+| E-1 | Conversation + status readouts (agents, tasks, approvals pending) | tailnet + voiceprint |
+| E-2 | Dispatch level-1 (auto-approvable) tasks | tailnet + voiceprint |
+| E-3 | **Approve/deny held level-2 items** | tailnet + voiceprint + **PIN** |
 
-Level-3 (dangerous) stays desktop-only regardless.
+Level-3 (dangerous) stays desktop-only regardless — unchanged.
+
+**PIN specification:**
+
+- **Entered on the keypad, not spoken** (default). Kiaros says "Task 14 is
+  waiting for approval — enter your PIN to approve"; a keypad sheet slides
+  up in the Pocket view. A spoken PIN can be overheard once and is burned
+  forever; a typed one leaks nothing to the room. (Spoken entry can be
+  added later as an accessibility option, owner-opt-in.)
+- **Stored as a salted scrypt hash** in `jarvis/.data/` — never plaintext,
+  never in git, never in transcripts or audit logs (redacted at the
+  pipeline edge before anything is persisted).
+- **Set and rotated on the Desktop only** (Voice Settings), never over a
+  Pocket session.
+- **Lockout:** 5 wrong attempts → PIN entry disabled for 15 minutes and
+  the failure is pushed to the Desktop approvals panel; the held task
+  simply stays queued (fail-safe: a lockout can never approve anything).
+- **Per-approval entry.** No PIN session tokens — each approve/deny of a
+  level-2 item requires a fresh entry. Deny requires voiceprint only (
+  declining work is always safe).
 
 ### E5. Deliverables & order
 
@@ -203,7 +224,9 @@ flashier feature.
 3. ~~Tunnel~~ RESOLVED 2026-07-23: Tailscale free personal plan (private
    tailnet; nothing public). Requires installing Tailscale on the Mac and
    phone — the one piece of owner-side setup
-4. Phone capability ceiling at launch: **E-1→E-2 (recommended)**, E-3 later
+4. ~~Phone capability ceiling~~ RESOLVED 2026-07-23 by owner directive:
+   E-3 included — level-2 approvals from the phone, gated by voiceprint +
+   typed PIN (spec in §E4). Level-3 remains desktop-only
 5. ~~Budget~~ RESOLVED 2026-07-23 by owner directive: **$0** — local
    speaker model, browser speech engines, Tailscale free tier. Optional
    later add-ons at no cost: Deepgram signup credit, ElevenLabs free tier
