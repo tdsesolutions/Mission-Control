@@ -1,8 +1,26 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { useJarvisStore } from '../stores/jarvisStore';
-import { Zap, Wifi, WifiOff } from 'lucide-react';
+import { Zap } from 'lucide-react';
+
+/** Live presence colors per connection/conversation state. */
+function presence(isConnected: boolean, status: string): { color: string; label: string } {
+  if (!isConnected) return { color: 'var(--j-error)', label: 'Offline' };
+  switch (status) {
+    case 'thinking':
+      return { color: 'var(--j-secondary)', label: 'Thinking' };
+    case 'listening':
+      return { color: 'var(--j-primary)', label: 'Listening' };
+    case 'responding':
+    case 'executing':
+      return { color: 'var(--j-info)', label: 'Working' };
+    default:
+      return { color: 'var(--j-success)', label: 'Online' };
+  }
+}
 
 export function Header() {
   const { isConnected, status } = useJarvisStore();
+  const state = presence(isConnected, status);
 
   return (
     <header className="jarvis-header">
@@ -17,30 +35,21 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Connection Status */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded border ${
-          isConnected 
-            ? 'bg-[rgba(0,255,136,0.1)] border-[rgba(0,255,136,0.3)]' 
-            : 'bg-[rgba(255,51,102,0.1)] border-[rgba(255,51,102,0.3)]'
-        }`}>
-          {isConnected ? (
-            <Wifi size={16} className="text-[var(--j-success)]" />
-          ) : (
-            <WifiOff size={16} className="text-[var(--j-error)]" />
-          )}
-          <span className={`text-sm font-medium ${
-            isConnected ? 'text-[var(--j-success)]' : 'text-[var(--j-error)]'
-          }`}>
-            {isConnected ? 'Connected' : 'Disconnected'}
-          </span>
+        {/* Presence: breathing orb + crossfading state label */}
+        <div className="state-chip" style={{ color: state.color, borderColor: `color-mix(in srgb, ${state.color} 35%, transparent)` }}>
+          <span className="presence-orb" />
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={state.label}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {state.label}
+            </motion.span>
+          </AnimatePresence>
         </div>
-
-        {/* Status */}
-        {isConnected && (
-          <div className="text-xs text-[var(--j-text-muted)] uppercase tracking-wider">
-            {status}
-          </div>
-        )}
       </div>
     </header>
   );

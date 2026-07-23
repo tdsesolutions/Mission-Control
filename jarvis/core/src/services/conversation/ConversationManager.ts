@@ -69,11 +69,25 @@ const MAX_HISTORY_MESSAGES = 20;
  * match because they don't open with the verb.
  */
 const IMPERATIVE_ACTION_PATTERN =
-  /^\s*(please\s+)?(create|make|generate|build|write|draft|scaffold|prototype|refactor|update|modify|edit|change|fix|patch|rename|redesign|implement|add|remove|delete|install|configure|deploy|publish|release|ship|restart|migrate|optimi[sz]e|set\s+up)\b/i;
+  /^\s*(please\s+)?(create|make|generate|build|write|draft|scaffold|prototype|refactor|update|modify|edit|change|fix|patch|rename|redesign|implement|add|remove|delete|install|configure|deploy|publish|release|ship|restart|migrate|optimi[sz]e|set\s+up|open|launch|run|execute|start|organi[sz]e|clean\s+up|move|copy|schedule|queue|dispatch|send|download)\b/i;
+
+/**
+ * Explicit owner direction of the Claw agents ("use Claw to organize…",
+ * "have Claw fix…", "I want Claw to build…", "Claw should clean up…").
+ * Requires an ACTION VERB attached to Claw so capability questions
+ * ("can you tell claw what to do?", "what is Claw working on?") do NOT
+ * match — those deserve an accurate conversational answer, not a task.
+ */
+const CLAW_DIRECTIVE_PATTERN =
+  /\b(?:open\s?claw|claw)\b[,:]?\s+(?:to\s+|should\s+|must\s+|needs?\s+to\s+)?(?:create|make|generate|build|write|draft|scaffold|refactor|update|modify|edit|change|fix|patch|rename|implement|add|remove|delete|install|configure|deploy|organi[sz]e|clean(?:\s+up)?|move|copy|run|execute|open|launch|start|schedule|download|set\s+up)\b/i;
 
 /** Should this message be routed through the dispatch path? Deterministic. */
 export function isActionRequest(content: string, intent: Intent): boolean {
-  return intent === 'command' || IMPERATIVE_ACTION_PATTERN.test(content);
+  return (
+    intent === 'command' ||
+    IMPERATIVE_ACTION_PATTERN.test(content) ||
+    CLAW_DIRECTIVE_PATTERN.test(content)
+  );
 }
 
 /**
@@ -85,6 +99,12 @@ const KIAROS_PERSONA = `You are Kiaros, the personal AI executive assistant for 
 Personality: composed, capable, and direct — a trusted chief of staff. Warm but never gushing. Addressing the user as "Teddie" occasionally is fine.
 
 You CAN take action: when the owner asks for work to be done, the system automatically classifies the request through a deterministic Approval Engine and, when allowed, creates a real task in Mission Control, which dispatches it to the OpenClaw engineering agents. You will be told exactly what happened for each request; that report is ground truth.
+
+Capability facts — use these when asked what you can do or whether you have computer access:
+- Teddie is the authorized owner. His explicit requests ARE authorized; never answer as if you lack permission in general.
+- You direct real work on this computer through the chain Kiaros → Mission Control → OpenClaw ("Claw") agents: opening and organizing folders and projects, creating and editing files, running approved tools and workflows. The Approval Engine decides per request whether it dispatches immediately or is held for Teddie's one-click approval.
+- When Teddie tells you what he wants Claw to do, the system turns it into a Mission Control task — you never talk to Claw directly, and you never need to refuse; the Approval Engine is the safety mechanism, not your hesitation.
+- Never claim you have no access to the computer. Accurately state one of: the action was dispatched (give the task id), it awaits Teddie's approval (say so), the request was rejected or unclear (give the reason), or that specific capability is not implemented yet (say exactly that).
 
 Hard constraints:
 - Only describe actions the system report says actually happened. If a task was created, you may confirm it (mention its id). If it is awaiting owner approval, say so. If dispatch failed or Mission Control is unreachable, say so plainly. Never claim work was done that wasn't, and never invent system state you were not given.

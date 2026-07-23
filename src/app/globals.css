@@ -66,7 +66,9 @@
     --accent-foreground: 210 20% 92%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 14%;
+    /* Phase A (2026-07-22): borders carry a faint cyan identity tint so every
+       card reads as a node on the system map (was neutral 220 20% 14%). */
+    --border: 193 32% 16%;
     --input: 220 20% 14%;
     --ring: 187 82% 53%;
 
@@ -814,3 +816,271 @@
     repeating-linear-gradient(90deg, transparent 0px, transparent 19px, hsl(120 100% 50% / 0.02) 20px);
   background-size: 100% 100%, 20px 20px, 20px 20px;
 }
+
+/* ============================================================================
+   2026 Motion & Login Pass (owner-approved shell polish, 2026-07-11)
+   CSS-only: aurora login backdrop, glass card, panel-switch entrance,
+   nav active indicator via [aria-current]. Reduced motion honored.
+   ============================================================================ */
+
+.mc-login-aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mc-login-aurora span {
+  position: absolute;
+  width: 55vw;
+  height: 55vw;
+  border-radius: 9999px;
+  filter: blur(100px);
+  opacity: 0.13;
+  will-change: transform;
+}
+
+.mc-login-aurora span:nth-child(1) {
+  background: radial-gradient(circle, hsl(187 82% 53%), transparent 65%);
+  top: -25%;
+  left: -15%;
+  animation: mc-aurora-a 24s ease-in-out infinite alternate;
+}
+
+.mc-login-aurora span:nth-child(2) {
+  background: radial-gradient(circle, hsl(263 90% 66%), transparent 65%);
+  bottom: -30%;
+  right: -15%;
+  animation: mc-aurora-b 30s ease-in-out infinite alternate;
+}
+
+.mc-login-aurora span:nth-child(3) {
+  background: radial-gradient(circle, hsl(160 60% 52%), transparent 60%);
+  top: 40%;
+  left: 60%;
+  width: 30vw;
+  height: 30vw;
+  opacity: 0.08;
+  animation: mc-aurora-c 38s ease-in-out infinite alternate;
+}
+
+@keyframes mc-aurora-a { to { transform: translate(10vw, 6vh) scale(1.15); } }
+@keyframes mc-aurora-b { to { transform: translate(-8vw, -6vh) scale(1.1); } }
+@keyframes mc-aurora-c { to { transform: translate(-6vw, 8vh) scale(0.9); } }
+
+.mc-login-card {
+  padding: 2rem;
+  border-radius: 20px;
+  background:
+    linear-gradient(165deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.008) 40%),
+    hsl(var(--card) / 0.6);
+  border: 1.5px solid hsl(var(--mc-card-hue) / 0.38);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    0 0 28px hsl(var(--mc-card-hue) / 0.12),
+    0 24px 80px rgb(0 0 0 / 0.5),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  animation: mc-login-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mc-login-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.mc-login-logo {
+  animation: mc-logo-breathe 5s ease-in-out infinite;
+}
+
+@keyframes mc-logo-breathe {
+  0%, 100% { box-shadow: 0 0 16px hsl(var(--primary) / 0.2); }
+  50%      { box-shadow: 0 0 32px hsl(var(--primary) / 0.4); }
+}
+
+.mc-login-card input {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.mc-login-card input:focus {
+  box-shadow: 0 0 0 1px hsl(var(--ring) / 0.6), 0 0 24px hsl(var(--ring) / 0.15);
+}
+
+.mc-login-card button[type='submit'] {
+  transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+}
+
+.mc-login-card button[type='submit']:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px hsl(var(--primary) / 0.35);
+}
+
+.mc-login-card button[type='submit']:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Panel switches replay a soft rise — keyed wrapper in [[...panel]]/page.tsx */
+.mc-panel-transition {
+  animation: mc-panel-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mc-panel-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Nav rail: luminous indicator on the active item (hooks aria-current,
+   no component changes). */
+nav a[aria-current='page'],
+nav button[aria-current='page'] {
+  position: relative;
+}
+
+nav a[aria-current='page']::before,
+nav button[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(hsl(var(--primary)), hsl(var(--primary) / 0.25));
+  box-shadow: 0 0 10px hsl(var(--primary) / 0.6);
+  animation: mc-nav-indicator-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mc-nav-indicator-in {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-login-aurora span,
+  .mc-login-card,
+  .mc-login-logo,
+  .mc-panel-transition,
+  nav a[aria-current='page']::before,
+  nav button[aria-current='page']::before {
+    animation: none !important;
+  }
+}
+
+/* ============================================================================
+   Phase A — Node-card system (owner-approved 2026-07-22)
+   Identity hue tokens + the glowing glass tile primitive from the reference
+   design. Utilities only: applying them to panels/widgets is Phase B, so
+   nothing in the existing 45 panels changes until explicitly opted in.
+   ============================================================================ */
+
+:root {
+  --mc-hue-system: 187 82% 53%;  /* turquoise — system/overview/gateways */
+  --mc-hue-exec: 263 90% 66%;    /* purple — tasks/memory/automation */
+  --mc-hue-comms: 142 71% 55%;   /* green — chat/channels/sessions */
+  --mc-hue-data: 172 66% 50%;    /* teal — logs/cost/audit */
+  --mc-hue-brain: 42 92% 60%;    /* gold — coordinator/agent-brain */
+  --mc-card-hue: var(--mc-hue-system);
+}
+
+.mc-node-card {
+  border-radius: 20px;
+  background:
+    linear-gradient(165deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.008) 40%),
+    hsl(var(--card) / 0.85);
+  border: 1.5px solid hsl(var(--mc-card-hue) / 0.38);
+  box-shadow:
+    0 0 24px hsl(var(--mc-card-hue) / 0.10),
+    0 14px 38px rgb(0 0 0 / 0.42),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mc-node-card:hover {
+  border-color: hsl(var(--mc-card-hue) / 0.6);
+  box-shadow:
+    0 0 38px hsl(var(--mc-card-hue) / 0.16),
+    0 14px 38px rgb(0 0 0 / 0.42),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
+.mc-node-card[data-hue='exec'] { --mc-card-hue: var(--mc-hue-exec); }
+.mc-node-card[data-hue='comms'] { --mc-card-hue: var(--mc-hue-comms); }
+.mc-node-card[data-hue='data'] { --mc-card-hue: var(--mc-hue-data); }
+.mc-node-card[data-hue='brain'] { --mc-card-hue: var(--mc-hue-brain); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-node-card { transition: none; }
+}
+
+/* ============================================================================
+   Phase A — system-map node-card primitive (2026-07-22)
+   Same visual language as Kiaros: glass tile, luminous identity border,
+   soft hue glow. Inert until applied (Phase B adds the classes/hues to
+   dashboard widgets and panels). Reduced motion honored via transitions only.
+   ============================================================================ */
+
+.mc-node-card {
+  --node-hue: 187 82% 53%; /* default: void cyan */
+  border-radius: 20px;
+  border: 1.5px solid hsl(var(--node-hue) / 0.36);
+  background:
+    linear-gradient(165deg, hsl(0 0% 100% / 0.045), hsl(0 0% 100% / 0.008) 40%),
+    hsl(var(--card) / 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 0 26px hsl(var(--node-hue) / 0.10),
+    0 14px 40px hsl(0 0% 0% / 0.45),
+    inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.mc-node-card:hover {
+  border-color: hsl(var(--node-hue) / 0.55);
+  box-shadow:
+    0 0 36px hsl(var(--node-hue) / 0.16),
+    0 14px 40px hsl(0 0% 0% / 0.45),
+    inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  transform: translateY(-1px);
+}
+
+.mc-node-card[data-hue='purple'] { --node-hue: 263 90% 66%; }
+.mc-node-card[data-hue='green']  { --node-hue: 145 65% 55%; }
+.mc-node-card[data-hue='gold']   { --node-hue: 40 90% 61%; }
+.mc-node-card[data-hue='teal']   { --node-hue: 172 66% 50%; }
+.mc-node-card[data-hue='crimson']{ --node-hue: 348 100% 60%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-node-card, .mc-node-card:hover { transition: none; transform: none; }
+}
+
+/* Phase B — dashboard widgets as system-map nodes. The cell restyles the
+   widget's own outer chrome (border/glow/radius); backgrounds untouched. */
+.mc-widget-cell { --node-hue: 187 82% 53%; }
+.mc-widget-cell[data-hue='purple'] { --node-hue: 263 90% 66%; }
+.mc-widget-cell[data-hue='green']  { --node-hue: 145 65% 55%; }
+.mc-widget-cell[data-hue='gold']   { --node-hue: 40 90% 61%; }
+.mc-widget-cell[data-hue='teal']   { --node-hue: 172 66% 50%; }
+.mc-widget-cell[data-hue='crimson']{ --node-hue: 348 100% 60%; }
+
+.mc-widget-cell > :first-child {
+  border-radius: 18px;
+  border: 1px solid hsl(var(--node-hue) / 0.28);
+  box-shadow:
+    0 0 22px hsl(var(--node-hue) / 0.07),
+    inset 0 1px 0 hsl(0 0% 100% / 0.05);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mc-widget-cell:hover > :first-child {
+  border-color: hsl(var(--node-hue) / 0.5);
+  box-shadow:
+    0 0 30px hsl(var(--node-hue) / 0.13),
+    inset 0 1px 0 hsl(0 0% 100% / 0.07);
+}
+
+/* Phase B — nav group identity tints (system-map categories) */
+.nav-group-label { color: hsl(var(--muted-foreground) / 0.6); }
+.nav-group-observe  { color: hsl(172 66% 50% / 0.75); }
+.nav-group-automate { color: hsl(263 90% 66% / 0.75); }
+.nav-group-admin    { color: hsl(40 90% 61% / 0.75); }

@@ -291,7 +291,7 @@ export function NavRail() {
                   onClick={() => toggleGroup(group.id)}
                   className="w-full flex items-center justify-between px-3 mt-3 mb-1 h-auto py-0 rounded-none hover:bg-transparent group/header"
                 >
-                  <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
+                  <span className={`text-[10px] tracking-wider font-semibold select-none nav-group-label nav-group-${group.id}`}>
                     {group.label}
                   </span>
                   <svg

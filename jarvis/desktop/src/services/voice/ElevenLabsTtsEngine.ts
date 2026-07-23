@@ -23,6 +23,7 @@ export class ElevenLabsTtsEngine {
   private objectUrl: string | null = null;
   private abortController: AbortController | null = null;
   private speaking = false;
+  private unlocked = false;
   private volume = 1.0;
   private rate = 1.0;
   private activeFinish: ((outcome: 'completed' | 'stopped' | 'error', detail?: string) => void) | null = null;
@@ -41,6 +42,43 @@ export class ElevenLabsTtsEngine {
 
   isSpeaking(): boolean {
     return this.speaking;
+  }
+
+  /**
+   * Prime audio playback from within a REAL user gesture (mic press).
+   * Safari's autoplay policy blocks play() calls issued long after the
+   * gesture; playing a silent clip on the persistent element during the
+   * gesture marks that element user-activated, so later replies on the
+   * same element are allowed. Safe to call repeatedly; no-op elsewhere.
+   */
+  unlock(): void {
+    if (!this.isSupported()) return;
+    const audio = this.ensureElement();
+    if (this.unlocked) return;
+    // 2-sample silent WAV — inaudible, decodes everywhere.
+    audio.src = SILENT_WAV_DATA_URI;
+    audio.muted = true;
+    void audio
+      .play()
+      .then(() => {
+        audio.pause();
+        this.unlocked = true;
+      })
+      .catch(() => {
+        // Rejected: leave unlocked=false so the next press retries.
+      })
+      .finally(() => {
+        audio.muted = false;
+        audio.removeAttribute('src');
+      });
+  }
+
+  /** One persistent element: user activation sticks to the element. */
+  private ensureElement(): HTMLAudioElement {
+    if (!this.audio) {
+      this.audio = new Audio();
+    }
+    return this.audio;
   }
 
   speak(text: string, callbacks: SpeechSessionCallbacks): void {
@@ -115,8 +153,11 @@ export class ElevenLabsTtsEngine {
       }
 
       this.objectUrl = URL.createObjectURL(blob);
-      const audio = new Audio(this.objectUrl);
-      this.audio = audio;
+      // Reuse the persistent (gesture-unlocked) element — a fresh Audio()
+      // created here would carry no user activation and Safari would block
+      // playback this far from the mic press.
+      const audio = this.ensureElement();
+      audio.src = this.objectUrl;
       audio.volume = this.volume;
       audio.playbackRate = this.rate;
 
@@ -172,7 +213,8 @@ export class ElevenLabsTtsEngine {
       this.audio.onended = null;
       this.audio.onerror = null;
       this.audio.removeAttribute('src');
-      this.audio = null;
+      // Keep the element itself — its user activation must survive for the
+      // next reply (see unlock()).
     }
     if (this.objectUrl) {
       URL.revokeObjectURL(this.objectUrl);
@@ -180,3 +222,7 @@ export class ElevenLabsTtsEngine {
     }
   }
 }
+
+/** 44-byte header + 2 zero samples: the shortest broadly-decodable clip. */
+const SILENT_WAV_DATA_URI =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQQAAAAAAAAA';

@@ -277,6 +277,15 @@ export class VoiceManager {
     synthesis.speak(text, callbacks);
   }
 
+  /**
+   * Prime cloud audio playback. MUST be called synchronously inside a real
+   * user gesture (the mic press) — Safari only allows delayed replies on an
+   * element that was activated during a gesture.
+   */
+  unlockAudio(): void {
+    this.getElevenLabs().unlock();
+  }
+
   stopSpeaking(): void {
     // Stop both: barge-in must silence whichever engine is speaking.
     this.getSynthesis().stop();

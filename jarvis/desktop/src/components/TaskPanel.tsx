@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { coreHeaders } from '../services/coreAuth';
 import { useJarvisStore } from '../stores/jarvisStore';
-import { CheckCircle2, Clock, AlertCircle, ListTodo, Ban, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, ListTodo, Ban, XCircle, RefreshCw } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -79,15 +80,16 @@ export function TaskPanel() {
   };
 
   return (
-    <div className="hud-panel flex-1">
+    <div className="hud-panel flex-1" data-hue="purple">
       <div className="hud-panel-corner tl" />
       <div className="hud-panel-corner tr" />
       <div className="hud-panel-corner bl" />
       <div className="hud-panel-corner br" />
-      
+
       <div className="hud-panel-header">
-        <ListTodo size={16} />
+        <span className="icon-badge"><ListTodo size={15} /></span>
         <span>Active Tasks</span>
+        <span className="hud-panel-tagline">What Kiaros is doing for you.</span>
       </div>
       
       <div className="hud-panel-content">
@@ -103,15 +105,20 @@ export function TaskPanel() {
           </div>
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-[var(--j-text-muted)]">
-            <ListTodo size={24} className="mb-2 opacity-50" />
-            <span className="text-sm">No active tasks</span>
+            <div className="empty-constellation" aria-hidden="true">
+              <i /><i /><i /><i /><i />
+            </div>
+            <span className="text-sm">Queue clear — standing by</span>
           </div>
         ) : (
           <div className="space-y-3">
-            {tasks.map((task) => (
-              <div
+            {tasks.map((task, index) => (
+              <motion.div
                 key={task.id}
-                className="p-3 bg-[rgba(255,255,255,0.03)] rounded border border-[var(--j-bg-panel-border)] hover:border-[var(--j-hud-line)] transition-colors"
+                className={`task-card priority-${task.priority} p-3 pl-4 bg-[rgba(255,255,255,0.03)] rounded border border-[var(--j-bg-panel-border)]`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.07, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -124,20 +131,24 @@ export function TaskPanel() {
                     {task.priority}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
 
         <div className="mt-4 pt-4 border-t border-[var(--j-bg-panel-border)]">
-          <div className="flex justify-between text-xs text-[var(--j-text-muted)]">
-            <span>Total: {tasks.length}</span>
-            <button 
+          <div className="flex justify-between items-center text-xs text-[var(--j-text-muted)]">
+            <span className="metric-number">Total: {tasks.length}</span>
+            <motion.button
               onClick={fetchTasks}
-              className="text-[var(--j-primary)] hover:underline"
+              className="flex items-center gap-1.5 text-[var(--j-primary)] hover:text-[var(--j-text-primary)] transition-colors"
+              whileTap={{ rotate: 180, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              title="Refresh tasks"
             >
+              <RefreshCw size={12} />
               Refresh
-            </button>
+            </motion.button>
           </div>
         </div>
       </div>

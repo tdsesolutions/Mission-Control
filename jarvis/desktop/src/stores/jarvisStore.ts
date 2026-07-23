@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { JarvisMode, JarvisStatus } from '@shared/types/index.js';
-import { UI_MODES } from '@shared/constants/index.js';
+import type { JarvisMode, JarvisStatus } from '../../../shared/types/index.js';
+import { UI_MODES } from '../../../shared/constants/index.js';
 import { coreHeaders } from '../services/coreAuth';
 import { coreSocket } from '../services/coreSocket';
 

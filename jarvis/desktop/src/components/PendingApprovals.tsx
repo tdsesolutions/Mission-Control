@@ -78,15 +78,16 @@ export function PendingApprovals() {
   }
 
   return (
-    <div className="hud-panel mt-4">
+    <div className="hud-panel mt-4" data-hue="gold">
       <div className="hud-panel-corner tl" />
       <div className="hud-panel-corner tr" />
       <div className="hud-panel-corner bl" />
       <div className="hud-panel-corner br" />
 
       <div className="hud-panel-header">
-        <ShieldQuestion size={16} />
+        <span className="icon-badge"><ShieldQuestion size={15} /></span>
         <span>Awaiting Your Approval</span>
+        <span className="hud-panel-tagline">Nothing moves without your word.</span>
       </div>
 
       <div className="hud-panel-content">

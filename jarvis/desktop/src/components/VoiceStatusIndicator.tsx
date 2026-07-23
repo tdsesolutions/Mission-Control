@@ -7,7 +7,7 @@ import { Mic, Volume2, VolumeX, AlertCircle } from 'lucide-react';
 import { useVoiceStore } from '../stores/voiceStore';
 
 export function VoiceStatusIndicator() {
-  const { voiceState, isSupported, settings, providers } = useVoiceStore();
+  const { voiceState, isSupported, settings, providers, errorMessage } = useVoiceStore();
 
   if (!isSupported) {
     return null;
@@ -61,6 +61,14 @@ export function VoiceStatusIndicator() {
       ) : usingCloud ? (
         <span className="text-[10px] uppercase text-[var(--j-text-muted)]">cloud</span>
       ) : null}
+      {errorMessage && (
+        <span
+          className="text-[10px] text-[var(--j-error)] max-w-[260px] truncate"
+          title={errorMessage}
+        >
+          {errorMessage}
+        </span>
+      )}
     </div>
   );
 }

@@ -470,7 +470,10 @@ export default function Home() {
         >
           <div aria-live="polite" className="flex flex-col min-h-full">
             <ErrorBoundary key={activeTab}>
-              <ContentRouter tab={activeTab} />
+              {/* Keyed on the tab so every panel switch replays the entrance. */}
+              <div className="mc-panel-transition flex flex-col min-h-full">
+                <ContentRouter tab={activeTab} />
+              </div>
             </ErrorBoundary>
           </div>
 {/* Footer removed — attribution moved to nav sidebar */}

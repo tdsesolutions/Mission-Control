@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense, type FormEvent } from 'react';
 import { useJarvisStore } from '../stores/jarvisStore';
 import { Send, MessageSquare, AlertCircle } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export function ConversationPanel() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim() || status === 'thinking' || !isConnected) return;
     
@@ -37,10 +37,10 @@ export function ConversationPanel() {
   };
 
   return (
-    <div className="conversation-container h-full">
+    <div className="conversation-container h-full" data-hue="green">
       <div className="conversation-header">
         <div className="conversation-title">
-          <MessageSquare size={14} />
+          <span className="icon-badge"><MessageSquare size={14} /></span>
           <span>Kiaros Communication Interface</span>
         </div>
         <div className="flex items-center gap-2">

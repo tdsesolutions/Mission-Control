@@ -290,13 +290,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="absolute top-4 right-4">
+    <div className="mc-login-root min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      <div className="mc-login-aurora" aria-hidden="true">
+        <span /><span /><span />
+      </div>
+      <div className="absolute top-4 right-4 z-10">
         <LanguageSwitcherSelect />
       </div>
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm mc-login-card relative">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
+          <div className="mc-login-logo w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"

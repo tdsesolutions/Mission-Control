@@ -238,7 +238,10 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => {
         lastSpokenEndedAt = Date.now();
         set({ isSpeaking: false });
         if (outcome === 'error') {
+          // Never silent: the reply text is in the chat, but the owner must
+          // SEE that it wasn't spoken and why. The loop still continues.
           console.warn('Speech synthesis issue:', detail);
+          set({ errorMessage: `Reply not spoken: ${detail || 'audio playback failed'}` });
         }
         afterTurn(generation);
       },
@@ -276,6 +279,11 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => {
 
     toggleConversation: async () => {
       const state = get();
+
+      // Unlock cloud audio playback SYNCHRONOUSLY inside this user gesture —
+      // Safari blocks replies played long after the press otherwise. Must
+      // run before any await.
+      manager().unlockAudio();
 
       // Barge-in: pressing the mic while Kiaros speaks stops the speech
       // and immediately listens — the natural "let me interrupt" gesture.

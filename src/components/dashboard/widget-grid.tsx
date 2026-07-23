@@ -40,6 +40,21 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardDat
   'quick-actions': QuickActionsWidget,
 }
 
+// Phase B (2026-07-22): identity hues per widget — the system-map language.
+// Unlisted widgets inherit the default void-cyan node hue.
+const WIDGET_HUES: Record<string, string> = {
+  'task-pipeline': 'purple',
+  'task-flow': 'purple',
+  'session-workbench': 'green',
+  'quick-actions': 'green',
+  'activity-timeline': 'teal',
+  'event-stream': 'teal',
+  'metric-cards': 'teal',
+  'github-signal': 'teal',
+  'security-audit': 'gold',
+  'maintenance': 'gold',
+}
+
 // Map widget defaultSize to CSS grid column spans
 const SIZE_CLASSES: Record<string, string> = {
   sm: 'xl:col-span-6',
@@ -204,7 +219,8 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
     return (
       <div
         key={widgetId}
-        className={`${colClass} relative ${customizing ? 'cursor-grab' : ''} ${
+        data-hue={WIDGET_HUES[widgetId]}
+        className={`mc-widget-cell ${colClass} relative ${customizing ? 'cursor-grab' : ''} ${
           isDragging ? 'opacity-40' : ''
         } ${isDragOver ? 'ring-2 ring-primary/50 rounded-lg' : ''}`}
         draggable={customizing}

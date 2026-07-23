@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { coreHeaders } from '../services/coreAuth';
 import { Server, Activity, Cpu } from 'lucide-react';
 
@@ -16,6 +17,37 @@ interface CoreMetrics {
 }
 
 const JARVIS_CORE_URL = 'http://localhost:3010';
+/** ~2 minutes of 5s polls — the sparkline window. */
+const HISTORY_LENGTH = 24;
+
+/** Tiny real-data sparkline; renders nothing until 2+ samples exist. */
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  if (points.length < 2) return null;
+  const max = Math.max(...points, 1);
+  const min = Math.min(...points, 0);
+  const range = max - min || 1;
+  const coords = points
+    .map((value, i) => {
+      const x = (i / (points.length - 1)) * 72;
+      const y = 18 - ((value - min) / range) * 16;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg className="sparkline" width="72" height="20" viewBox="0 0 72 20">
+      <polyline
+        points={coords}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+    </svg>
+  );
+}
 
 export function ServicePanel() {
   const [services, setServices] = useState<ServiceStatus[]>([
@@ -24,6 +56,8 @@ export function ServicePanel() {
     { name: 'Kiaros Core', status: 'offline', port: 3010 },
   ]);
   const [coreMetrics, setCoreMetrics] = useState<CoreMetrics | null>(null);
+  const [cpuHistory, setCpuHistory] = useState<number[]>([]);
+  const [memHistory, setMemHistory] = useState<number[]>([]);
 
   useEffect(() => {
     // Ecosystem health comes from Kiaros Core's MonitorService only. The
@@ -58,7 +92,12 @@ export function ServicePanel() {
         // Real process metrics ride on the jarvis-core entry; no reading
         // means no numbers — never fabricate.
         const coreEntry = monitored.find((m) => m.name === 'jarvis-core');
-        setCoreMetrics(coreEntry?.metrics ?? null);
+        const metrics = coreEntry?.metrics ?? null;
+        setCoreMetrics(metrics);
+        if (metrics) {
+          setCpuHistory((h) => [...h, metrics.cpuUsage].slice(-HISTORY_LENGTH));
+          setMemHistory((h) => [...h, metrics.memoryUsage].slice(-HISTORY_LENGTH));
+        }
 
         setServices((current) =>
           current.map((service) => {
@@ -83,7 +122,7 @@ export function ServicePanel() {
 
     // Check immediately
     checkServices();
-    
+
     // Then check periodically
     const interval = setInterval(checkServices, 5000);
     return () => clearInterval(interval);
@@ -95,29 +134,36 @@ export function ServicePanel() {
       <div className="hud-panel-corner tr" />
       <div className="hud-panel-corner bl" />
       <div className="hud-panel-corner br" />
-      
+
       <div className="hud-panel-header">
-        <Server size={16} />
+        <span className="icon-badge"><Server size={15} /></span>
         <span>System Services</span>
+        <span className="hud-panel-tagline">Every system, one heartbeat.</span>
       </div>
-      
+
       <div className="hud-panel-content">
-        <div className="space-y-3">
-          {services.map((service) => (
-            <div key={service.name} className="flex items-center justify-between py-2 border-b border-[var(--j-bg-panel-border)] last:border-0">
+        <div className="space-y-1">
+          {services.map((service, index) => (
+            <motion.div
+              key={service.name}
+              className="service-row flex items-center justify-between py-2 border-b border-[var(--j-bg-panel-border)] last:border-0"
+              initial={{ opacity: 0, x: -14 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 + index * 0.09, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            >
               <div>
                 <div className="text-sm text-[var(--j-text-primary)]">{service.name}</div>
                 <div className="text-xs text-[var(--j-text-muted)]">Port {service.port}</div>
               </div>
               <div className="flex items-center gap-2">
                 {service.latency !== undefined && service.status === 'online' && (
-                  <span className="text-xs text-[var(--j-text-muted)] font-mono">
+                  <span className="text-xs text-[var(--j-text-muted)] font-mono metric-number">
                     {service.latency}ms
                   </span>
                 )}
                 <div className={`status-dot ${service.status}`} />
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
 
@@ -127,11 +173,15 @@ export function ServicePanel() {
               icon={<Activity size={14} />}
               label="Core CPU"
               value={coreMetrics ? `${coreMetrics.cpuUsage}%` : '—'}
+              history={cpuHistory}
+              color="var(--j-primary)"
             />
             <MetricCard
               icon={<Cpu size={14} />}
               label="Core Memory"
               value={coreMetrics ? `${coreMetrics.memoryUsage}MB` : '—'}
+              history={memHistory}
+              color="var(--j-secondary)"
             />
           </div>
         </div>
@@ -140,14 +190,30 @@ export function ServicePanel() {
   );
 }
 
-function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function MetricCard({ icon, label, value, history, color }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  history: number[];
+  color: string;
+}) {
   return (
     <div className="bg-[rgba(255,255,255,0.03)] rounded p-3">
       <div className="flex items-center gap-2 text-[var(--j-text-muted)] text-xs mb-1">
         {icon}
         <span>{label}</span>
       </div>
-      <div className="text-lg font-mono text-[var(--j-primary)]">{value}</div>
+      {/* Key on value: each reading pops in — live, not static */}
+      <motion.div
+        key={value}
+        className="text-lg metric-number text-[var(--j-primary)]"
+        initial={{ opacity: 0.4, y: 3 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {value}
+      </motion.div>
+      <Sparkline points={history} color={color} />
     </div>
   );
 }

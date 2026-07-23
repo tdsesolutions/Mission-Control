@@ -5,7 +5,7 @@
  * 2026-07-09.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Activity, Server, Cpu, HardDrive, Wifi, Shield } from 'lucide-react';
 import { useJarvisStore } from '../stores/jarvisStore';
 import { coreHeaders } from '../services/coreAuth';
@@ -223,7 +223,7 @@ function ServiceRow({ name, port, healthy }: { name: string; port: number; healt
 }
 
 function MetricCard({ icon, label, value, subtext, type = 'neutral' }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   subtext: string;

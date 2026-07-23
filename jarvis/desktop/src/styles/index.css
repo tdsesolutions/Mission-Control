@@ -136,14 +136,22 @@ html, body, #root {
 
 .jarvis-header {
   grid-area: header;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  background: var(--j-bg-panel);
-  border: 1px solid var(--j-bg-panel-border);
-  border-radius: var(--j-border-radius);
-  backdrop-filter: blur(20px);
+  /* Node-card recipe, flatter glow (chrome, not a subsystem tile) */
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.008) 40%),
+    linear-gradient(180deg, rgba(13, 16, 28, 0.92), rgba(7, 9, 16, 0.88));
+  border: 1.5px solid rgba(var(--card-hue), 0.28);
+  border-radius: 22px;
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 0 22px rgba(var(--card-hue), 0.07),
+    0 12px 30px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .jarvis-left-panel {
@@ -191,16 +199,45 @@ html, body, #root {
 }
 
 /* ============================================================================
-   HUD Panels
+   HUD Panels → NODE-CARDS (Phase A, owner-approved 2026-07-22)
+   The reference-image primitive: glowing glass tile with a luminous
+   identity-hue border, soft outer glow, inner top sheen. Every panel
+   inherits it here; Phase B assigns per-panel hues via --card-hue.
    ============================================================================ */
 
+:root {
+  /* Identity hues (R,G,B triplets for alpha composition) */
+  --hue-system: 20, 224, 200;   /* turquoise — services/system */
+  --hue-exec: 155, 92, 255;     /* purple — tasks/execution */
+  --hue-comms: 74, 222, 128;    /* green — communication */
+  --hue-data: 45, 212, 191;     /* teal — metrics/data */
+  --hue-brain: 245, 185, 68;    /* gold — the brain (Kiaros core) */
+  --card-hue: var(--hue-system);
+}
+
 .hud-panel {
-  background: var(--j-bg-panel);
-  border: 1px solid var(--j-bg-panel-border);
-  border-radius: var(--j-border-radius);
-  backdrop-filter: blur(20px);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.008) 40%),
+    linear-gradient(180deg, rgba(13, 16, 28, 0.92), rgba(7, 9, 16, 0.88));
+  border: 1.5px solid rgba(var(--card-hue), 0.38);
+  border-radius: 22px;
+  backdrop-filter: blur(22px);
   overflow: hidden;
   position: relative;
+  box-shadow:
+    0 0 28px rgba(var(--card-hue), 0.10),
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transition: border-color var(--j-duration-normal) var(--j-easing-smooth),
+              box-shadow var(--j-duration-normal) var(--j-easing-smooth);
+}
+
+.hud-panel:hover {
+  border-color: rgba(var(--card-hue), 0.6);
+  box-shadow:
+    0 0 42px rgba(var(--card-hue), 0.17),
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 .hud-panel::before {
@@ -210,7 +247,7 @@ html, body, #root {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--j-primary-dim), transparent);
+  background: linear-gradient(90deg, transparent, rgba(var(--card-hue), 0.7), transparent);
 }
 
 .hud-panel-header {
@@ -218,29 +255,23 @@ html, body, #root {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--j-bg-panel-border);
+  border-bottom: 1px solid rgba(var(--card-hue), 0.14);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--j-text-accent);
+  color: rgb(var(--card-hue));
 }
 
 .hud-panel-content {
   padding: 1.25rem;
 }
 
+/* HUD corner ticks retired — the node-card border carries the identity now.
+   Kept as a no-op class so existing markup needs no edits. */
 .hud-panel-corner {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--j-primary-dim);
+  display: none;
 }
-
-.hud-panel-corner.tl { top: -1px; left: -1px; border-right: none; border-bottom: none; }
-.hud-panel-corner.tr { top: -1px; right: -1px; border-left: none; border-bottom: none; }
-.hud-panel-corner.bl { bottom: -1px; left: -1px; border-right: none; border-top: none; }
-.hud-panel-corner.br { bottom: -1px; right: -1px; border-left: none; border-top: none; }
 
 /* ============================================================================
    KIAROS FACE - Executive Interface (default mode)
@@ -580,11 +611,18 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--j-bg-panel);
-  border: 1px solid var(--j-bg-panel-border);
-  border-radius: var(--j-border-radius);
-  backdrop-filter: blur(20px);
+  /* Node-card recipe (comms panel) — same primitive as .hud-panel */
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.008) 40%),
+    linear-gradient(180deg, rgba(13, 16, 28, 0.92), rgba(7, 9, 16, 0.88));
+  border: 1.5px solid rgba(var(--card-hue), 0.38);
+  border-radius: 22px;
+  backdrop-filter: blur(22px);
   overflow: hidden;
+  box-shadow:
+    0 0 28px rgba(var(--card-hue), 0.10),
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .conversation-header {
@@ -1109,6 +1147,445 @@ html, body, #root {
   }
   50% {
     box-shadow: 0 0 0 8px rgba(0, 255, 136, 0);
+  }
+}
+
+/* ============================================================================
+   PHASE A — SYSTEM-MAP DESIGN LANGUAGE (owner reference image, 2026-07-22)
+   Identity hues + the glowing node-card primitive. Every panel is a node in
+   a living network. Hue assignment per panel happens via data-hue (Phase B);
+   until then everything inherits the default turquoise.
+   ============================================================================ */
+
+:root {
+  /* Identity hues as R,G,B triplets for alpha composition */
+  --j-hue-cyan: 20, 224, 200;    /* system/services  */
+  --j-hue-purple: 155, 92, 255;  /* tasks/knowledge  */
+  --j-hue-green: 74, 222, 128;   /* communication    */
+  --j-hue-gold: 245, 185, 68;    /* the brain (Kiaros core identity) */
+  --j-hue-teal: 45, 212, 191;    /* data/metrics     */
+  --j-hue-crimson: 255, 51, 102; /* errors only      */
+  --card-hue: var(--j-hue-cyan);
+}
+
+/* Phase B hooks: set the hue by attribute, no other markup changes */
+[data-hue='purple']  { --card-hue: var(--j-hue-purple); }
+[data-hue='green']   { --card-hue: var(--j-hue-green); }
+[data-hue='gold']    { --card-hue: var(--j-hue-gold); }
+[data-hue='teal']    { --card-hue: var(--j-hue-teal); }
+[data-hue='crimson'] { --card-hue: var(--j-hue-crimson); }
+
+/* --- The node-card primitive: glass tile with luminous identity border --- */
+.hud-panel,
+.conversation-container {
+  border-radius: 22px;
+  border: 1.5px solid rgba(var(--card-hue), 0.38);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.008) 40%),
+    linear-gradient(180deg, rgba(14, 16, 26, 0.92), rgba(7, 8, 14, 0.88));
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 0 28px rgba(var(--card-hue), 0.10),
+    0 18px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transition: border-color var(--j-duration-normal) var(--j-easing-smooth),
+              box-shadow var(--j-duration-normal) var(--j-easing-smooth);
+}
+
+.hud-panel:hover,
+.conversation-container:hover {
+  border-color: rgba(var(--card-hue), 0.58);
+  box-shadow:
+    0 0 40px rgba(var(--card-hue), 0.16),
+    0 18px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+/* Top hairline + header take the identity hue */
+.hud-panel::before {
+  background: linear-gradient(90deg, transparent, rgba(var(--card-hue), 0.7), transparent);
+}
+
+.hud-panel-header {
+  color: rgb(var(--card-hue));
+  border-bottom-color: rgba(var(--card-hue), 0.14);
+}
+
+.conversation-title {
+  color: rgb(var(--card-hue));
+}
+
+/* The HUD corner ticks belong to the old language — retired by the
+   node-card look (elements remain in markup; cost-free). */
+.hud-panel-corner {
+  display: none;
+}
+
+/* --- Phase B: icon badges + taglines (reference-image card anatomy) --- */
+.hud-panel-header {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  color: #07080d;
+  background: linear-gradient(140deg, rgba(var(--card-hue), 1), rgba(var(--card-hue), 0.55));
+  box-shadow:
+    0 0 14px rgba(var(--card-hue), 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.hud-panel-tagline {
+  flex-basis: 100%;
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--j-text-muted);
+}
+
+/* ============================================================================
+   2026 PREMIUM MOTION LAYER (owner directive: maximal showcase)
+   Aurora depth, particle field, voice-reactive ambience, glass dock,
+   sparklines, presence orb. GPU-only transforms; reduced-motion honored.
+   ============================================================================ */
+
+/* --- Ambient backdrop: aurora blobs + rising particles + vignette --- */
+.jarvis-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.aurora {
+  position: absolute;
+  width: 58vw;
+  height: 58vw;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.13;
+  will-change: transform;
+  transition: opacity 1200ms var(--j-easing-smooth);
+}
+
+.aurora-1 {
+  background: radial-gradient(circle, var(--j-primary), transparent 65%);
+  top: -22%;
+  left: -12%;
+  animation: aurora-drift-1 26s ease-in-out infinite alternate;
+}
+
+.aurora-2 {
+  background: radial-gradient(circle, var(--j-secondary), transparent 65%);
+  bottom: -26%;
+  right: -12%;
+  animation: aurora-drift-2 32s ease-in-out infinite alternate;
+}
+
+.aurora-3 {
+  background: radial-gradient(circle, var(--j-primary-deep), transparent 60%);
+  top: 32%;
+  left: 56%;
+  width: 36vw;
+  height: 36vw;
+  opacity: 0.09;
+  animation: aurora-drift-3 40s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift-1 { to { transform: translate(11vw, 7vh) scale(1.14); } }
+@keyframes aurora-drift-2 { to { transform: translate(-9vw, -6vh) scale(1.1); } }
+@keyframes aurora-drift-3 { to { transform: translate(-7vw, 9vh) scale(0.9); } }
+
+.particle-field span {
+  position: absolute;
+  bottom: -6px;
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--j-primary);
+  box-shadow: 0 0 6px var(--j-primary);
+  opacity: 0;
+  animation: particle-rise linear infinite;
+  will-change: transform, opacity;
+}
+
+.particle-field span:nth-child(3n) {
+  background: var(--j-secondary);
+  box-shadow: 0 0 6px var(--j-secondary);
+}
+
+.particle-field span:nth-child(4n) {
+  width: 2px;
+  height: 2px;
+}
+
+@keyframes particle-rise {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  8%   { opacity: 0.5; }
+  85%  { opacity: 0.15; }
+  100% { transform: translate3d(var(--drift, 24px), -108vh, 0); opacity: 0; }
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 92% 78% at 50% 42%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* --- Voice-reactive ambience: pure CSS via :has(), zero JS coupling.
+       The room answers when Kiaros listens, thinks, and speaks. --- */
+.jarvis-app:has(.voice-button.listening) .aurora-1 { opacity: 0.3; }
+.jarvis-app:has(.voice-button.listening) .aurora-3 { opacity: 0.16; }
+.jarvis-app:has(.voice-button.speaking) .aurora-2 { opacity: 0.3; }
+.jarvis-app:has(.voice-button.speaking) .aurora-1 { opacity: 0.2; }
+.jarvis-app:has(.voice-button.error) .vignette {
+  background: radial-gradient(ellipse 92% 78% at 50% 42%, transparent 50%, rgba(80, 8, 24, 0.35) 100%);
+}
+
+/* --- Header presence orb + live state chip --- */
+.presence-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: presence-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes presence-breathe {
+  0%, 100% { box-shadow: 0 0 5px currentColor; transform: scale(1); }
+  50%      { box-shadow: 0 0 16px currentColor, 0 0 30px currentColor; transform: scale(1.22); }
+}
+
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--j-bg-panel-border);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: color var(--j-duration-normal) var(--j-easing-smooth),
+              border-color var(--j-duration-normal) var(--j-easing-smooth),
+              box-shadow var(--j-duration-normal) var(--j-easing-smooth);
+}
+
+.jarvis-logo {
+  animation: logo-glow 5s ease-in-out infinite;
+}
+
+@keyframes logo-glow {
+  0%, 100% { box-shadow: 0 0 14px var(--j-primary-glow); }
+  50%      { box-shadow: 0 0 26px rgba(20, 224, 200, 0.35), 0 0 40px rgba(155, 92, 255, 0.18); }
+}
+
+/* --- Mode dock: glass rail, sliding pill (framer layoutId), tooltips --- */
+.jarvis-center .mode-selector {
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(16, 18, 26, 0.9), rgba(8, 9, 14, 0.82));
+  border: 1px solid rgba(20, 224, 200, 0.14);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.mode-btn {
+  border: none;
+  overflow: visible;
+}
+
+.mode-btn:hover {
+  border-color: transparent;
+}
+
+.mode-btn.active {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--j-primary);
+}
+
+.mode-active-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--j-border-radius-sm);
+  background: linear-gradient(135deg, rgba(20, 224, 200, 0.16), rgba(155, 92, 255, 0.16));
+  border: 1px solid rgba(20, 224, 200, 0.45);
+  box-shadow: 0 0 18px var(--j-primary-glow);
+}
+
+.mode-tooltip {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--j-text-secondary);
+  background: rgba(6, 8, 12, 0.92);
+  border: 1px solid var(--j-hud-line);
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--j-duration-fast) var(--j-easing-smooth),
+              transform var(--j-duration-fast) var(--j-easing-smooth);
+  z-index: 20;
+}
+
+.mode-btn:hover .mode-tooltip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* --- Live metrics: tabular digits + sparklines --- */
+.metric-number {
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.sparkline {
+  display: block;
+  margin-top: 0.4rem;
+  opacity: 0.9;
+}
+
+.service-row {
+  transition: background var(--j-duration-fast) var(--j-easing-smooth),
+              transform var(--j-duration-fast) var(--j-easing-smooth);
+  border-radius: var(--j-border-radius-sm);
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  margin-left: -0.4rem;
+  margin-right: -0.4rem;
+}
+
+.service-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(2px);
+}
+
+/* --- Task cards: priority edge + hover lift --- */
+.task-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--j-duration-fast) var(--j-easing-smooth),
+              border-color var(--j-duration-fast) var(--j-easing-smooth),
+              box-shadow var(--j-duration-fast) var(--j-easing-smooth);
+}
+
+.task-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--j-text-muted);
+}
+
+.task-card.priority-critical::before,
+.task-card.priority-high::before { background: linear-gradient(var(--j-error), rgba(255, 51, 102, 0.2)); }
+.task-card.priority-medium::before { background: linear-gradient(var(--j-warning), rgba(255, 184, 0, 0.2)); }
+.task-card.priority-low::before { background: linear-gradient(var(--j-primary), rgba(20, 224, 200, 0.2)); }
+
+.task-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--j-hud-line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Designed empty state: constellation --- */
+.empty-constellation {
+  position: relative;
+  width: 96px;
+  height: 72px;
+  margin-bottom: 0.9rem;
+  opacity: 0.75;
+}
+
+.empty-constellation i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--j-primary);
+  box-shadow: 0 0 8px var(--j-primary);
+  animation: constellation-twinkle 3.2s ease-in-out infinite;
+}
+
+.empty-constellation i:nth-child(2) { left: 38%; top: 8%;  background: var(--j-secondary); box-shadow: 0 0 8px var(--j-secondary); animation-delay: 0.6s; }
+.empty-constellation i:nth-child(3) { left: 72%; top: 28%; animation-delay: 1.2s; }
+.empty-constellation i:nth-child(4) { left: 18%; top: 55%; animation-delay: 1.8s; }
+.empty-constellation i:nth-child(5) { left: 55%; top: 70%; background: var(--j-secondary); box-shadow: 0 0 8px var(--j-secondary); animation-delay: 2.4s; }
+.empty-constellation i:nth-child(1) { left: 6%;  top: 20%; }
+
+@keyframes constellation-twinkle {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.4); }
+}
+
+/* --- Chat 2026: asymmetric bubbles, glassier input bar --- */
+.message {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+
+.message.user {
+  border-radius: 14px 14px 4px 14px;
+}
+
+.message.jarvis {
+  border-radius: 14px 14px 14px 4px;
+}
+
+.conversation-input-area {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.35));
+}
+
+.conversation-input {
+  border-radius: 999px;
+  padding-left: 1.4rem;
+}
+
+.conversation-send-btn {
+  border-radius: 999px;
+  position: relative;
+}
+
+.conversation-send-btn:hover:not(:disabled) {
+  transform: scale(1.08) rotate(-8deg);
+  box-shadow: 0 0 24px var(--j-primary-glow), 0 0 40px rgba(155, 92, 255, 0.2);
+}
+
+.conversation-send-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+/* --- Accessibility: the show stands down on request --- */
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .particle-field span,
+  .jarvis-app::after,
+  .presence-orb,
+  .jarvis-logo,
+  .empty-constellation i {
+    animation: none !important;
   }
 }
 

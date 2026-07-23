@@ -38,4 +38,26 @@ describe('isActionRequest (conversation dispatch gate)', () => {
     expect(gate('I wonder whether we should fix that someday')).toBe(false);
     expect(gate('The team will update the docs next week')).toBe(false);
   });
+
+  it('routes owner computer commands (2026-07-10 regression: "limited capability" refusals)', () => {
+    expect(gate('Open my Mission-Control project folder')).toBe(true);
+    expect(gate('Launch the dashboard project')).toBe(true);
+    expect(gate('Organize my downloads folder')).toBe(true);
+    expect(gate('Run the test suite for the payment module')).toBe(true);
+  });
+
+  it('routes explicit Claw directives in natural owner phrasing', () => {
+    expect(gate('Use Claw to organize my downloads folder')).toBe(true);
+    expect(gate('Have Claw fix the login bug')).toBe(true);
+    expect(gate('I want Claw to build a landing page for the studio')).toBe(true);
+    expect(gate('Tell Claw to create a test file in the sandbox')).toBe(true);
+    expect(gate('Claw should clean up the logs directory')).toBe(true);
+    expect(gate('Ask OpenClaw to update the README')).toBe(true);
+  });
+
+  it('does NOT route Claw capability questions or status chat', () => {
+    expect(gate('can you tell claw what to do if I tell you what I want done?')).toBe(false);
+    expect(gate('What is Claw working on right now?')).toBe(false);
+    expect(gate('do you have access to do what I want you to do on this computer')).toBe(false);
+  });
 });

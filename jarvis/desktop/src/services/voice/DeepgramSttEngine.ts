@@ -18,7 +18,11 @@ const STT_WS_URL = 'ws://localhost:3010/ws/voice/stt';
 const NO_SPEECH_TIMEOUT_MS = 8_000;
 /** Hard bound per utterance — the loop must never listen forever. */
 const MAX_UTTERANCE_MS = 30_000;
-const MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+// Only containers Deepgram's live API can actually decode. audio/mp4 (AAC)
+// records fine but streams as silence to Deepgram — it must never be
+// offered. Browsers with none of these (older Safari) report unsupported,
+// and VoiceManager falls back to the browser speech engine honestly.
+const MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
 const AUDIO_TIMESLICE_MS = 250;
 
 export class DeepgramSttEngine {

@@ -19,6 +19,12 @@ const nextConfig = {
   },
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
+
+  // Fast local/launcher builds: skip the in-build TypeScript recheck when
+  // MC_FAST_BUILD=1 (the slowest build phase, redundant when types were
+  // already verified via `pnpm typecheck`). Strict default is unchanged for
+  // CI/production. (Next 16 runs ESLint separately, not via next.config.)
+  typescript: { ignoreBuildErrors: process.env.MC_FAST_BUILD === '1' },
   
   // Security headers
   // Content-Security-Policy is set in src/proxy.ts with a per-request nonce.
