@@ -253,7 +253,7 @@ function getTranscriptText(message: TranscriptMessage): string {
     .trim()
 }
 
-function findAssistantTextAfterTaskPrompt(rawTranscript: string, task: DeferredCompletionTask): string | null {
+export function findAssistantTextAfterTaskPrompt(rawTranscript: string, task: DeferredCompletionTask): string | null {
   const messages = parseJsonlTranscript(rawTranscript, 2000)
   if (messages.length === 0) return null
 
@@ -266,11 +266,24 @@ function findAssistantTextAfterTaskPrompt(rawTranscript: string, task: DeferredC
     const userText = getTranscriptText(message).toLowerCase()
     if (!markers.some((marker) => userText.includes(marker))) continue
 
+    // The deliverable is the agent's FINAL report, not its opening
+    // narration ("Let me search for..."). Taking the first assistant text
+    // here saved a mid-thought fragment as task 4's resolution and lost the
+    // actual audit (owner-reported 2026-07-23). Prefer the last assistant
+    // text; if that is just a short sign-off ("Done."), fall back to the
+    // longest one after the prompt.
+    const texts: string[] = []
     for (let j = i + 1; j < messages.length; j++) {
       const candidate = messages[j]
       if (candidate.role !== 'assistant') continue
       const text = getTranscriptText(candidate)
-      if (text) return text.slice(0, 10_000)
+      if (text) texts.push(text)
+    }
+    if (texts.length > 0) {
+      const last = texts[texts.length - 1]
+      const longest = texts.reduce((a, b) => (b.length > a.length ? b : a))
+      const chosen = last.length < 80 && longest.length > 500 ? longest : last
+      return chosen.slice(0, 10_000)
     }
   }
 
