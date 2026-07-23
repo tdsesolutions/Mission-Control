@@ -80,7 +80,13 @@ defeats replay.
 
 ### D4. Deliverables & order
 
-1. Identity Service (embeddings, enroll/verify API, threshold tuning, tests)
+1. ~~Identity Service (embeddings, enroll/verify API, threshold tuning,
+   tests)~~ ✅ BUILT 2026-07-23 — `jarvis/identity` on port 3013
+   (sherpa-onnx CAM++ VoxCeleb, dim 512, fully local); 23/23 tests incl.
+   real-model discrimination proof; live HTTP enroll→verify verified.
+   Note recorded honestly: auto-calibration alone is permissive for
+   acoustically-close voices — final threshold review happens at desktop
+   enrollment (deliverable 3) against the owner's real voice.
 2. Core tee + `/ws/voice/verify` + transcript tagging
 3. Desktop enrollment flow in Voice Settings + "who am I hearing" indicator
 4. Dispatch gating + challenge phrase + audit trail
@@ -217,7 +223,9 @@ flashier feature.
 
 ## Owner decisions needed before build starts
 
-1. Unknown-voice policy: strict / **guest (recommended)** / challenge
+1. ~~Unknown-voice policy~~ RESOLVED 2026-07-23 by owner directive:
+   **guest mode** — unknown voices get polite conversation only; zero
+   dispatch, no Knowledge Vault access, no MC data readouts
 2. ~~Telephony provider~~ RESOLVED 2026-07-23 by the free mandate: no PSTN
    provider; Kiaros Pocket over Tailscale (§E1). Twilio preserved as the
    deferred paid path (§E6)

@@ -4,7 +4,12 @@ import { config } from './config'
 import { buildGatewayWebSocketUrl } from './gateway-url'
 import { getDetectedGatewayToken } from './gateway-runtime'
 
-const GATEWAY_PROTOCOL_VERSION = 3
+// OpenClaw gateways accept a client whose [min,max] range includes their own
+// protocol. 2026.6.x gateways moved to v4 (older ones speak v3), so advertise
+// the span rather than pinning one version — pinning 3/3 caused every task
+// dispatch to die with "Gateway connect failed: protocol mismatch".
+const GATEWAY_PROTOCOL_MIN = 3
+const GATEWAY_PROTOCOL_MAX = 4
 const GATEWAY_CLIENT_ID = process.env.GATEWAY_CLIENT_ID || 'gateway-client'
 const GATEWAY_SCOPES = ['operator.admin', 'operator.write', 'operator.read']
 
@@ -140,8 +145,8 @@ export async function callOpenClawGateway<T = unknown>(
         method: 'connect',
         id: connectId,
         params: {
-          minProtocol: GATEWAY_PROTOCOL_VERSION,
-          maxProtocol: GATEWAY_PROTOCOL_VERSION,
+          minProtocol: GATEWAY_PROTOCOL_MIN,
+          maxProtocol: GATEWAY_PROTOCOL_MAX,
           client: {
             id: GATEWAY_CLIENT_ID,
             displayName: 'Mission Control',
