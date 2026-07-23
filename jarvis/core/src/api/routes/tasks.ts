@@ -14,6 +14,8 @@
 import { Router } from 'express';
 import { getMissionControlClient } from '../../services/missionControlClient.js';
 import { getTaskDispatcher } from '../../services/dispatch/TaskDispatcher.js';
+import { extractExecCode } from '../../services/dispatch/execCode.js';
+import { config } from '../../config/index.js';
 
 const router = Router();
 
@@ -81,10 +83,15 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  // Owner execute code: extract + strip before dispatch so the digits never
+  // reach task descriptions or audit trails (same rule as conversation).
+  const exec = extractExecCode(statement, config.security.execCode);
+
   const result = await getTaskDispatcher().requestDispatch({
-    intent: statement,
+    intent: exec.cleaned,
     title: typeof title === 'string' ? title : undefined,
     source: 'api',
+    execAuthorized: exec.authorized,
   });
 
   switch (result.outcome) {

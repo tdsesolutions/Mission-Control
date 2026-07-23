@@ -47,6 +47,10 @@ export const config: JarvisConfig = {
   // /api/v1/* endpoints require it; /health stays open for monitors.
   security: {
     coreToken: process.env.KIAROS_CORE_TOKEN || '',
+    // Owner execute code (owner-approved 2026-07-23): spoken/typed digits
+    // that pre-authorize a dispatch ("…, execute code NNNN"). Level ≤ 2
+    // only — level 3+ is never bypassable. Empty = feature disabled.
+    execCode: process.env.KIAROS_EXEC_CODE || '',
   },
   
   openclaw: {

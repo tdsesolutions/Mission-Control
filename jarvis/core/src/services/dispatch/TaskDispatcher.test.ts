@@ -181,4 +181,67 @@ describe('TaskDispatcher', () => {
     expect(revived.listPending()).toHaveLength(1);
     expect(revived.listPending()[0].id).toBe(held.pending.id);
   });
+
+  // --- Owner execute code (owner-approved 2026-07-23) ---
+
+  it('execAuthorized pre-approves a level-2 request straight into MC with auto_accept', async () => {
+    const result = await dispatcher.requestDispatch({
+      intent: 'Fix the login bug in the dashboard project',
+      source: 'test',
+      execAuthorized: true,
+    });
+    expect(result.outcome).toBe('dispatched');
+    expect(dispatcher.listPending()).toHaveLength(0); // nothing held
+    expect(mc.calls).toHaveLength(1);
+    const payload = mc.calls[0] as { description: string; metadata: Record<string, unknown> };
+    expect(payload.metadata.auto_accept).toBe(true);
+    expect(payload.description).toContain('pre-authorized via execute code');
+  });
+
+  it('execAuthorized marks even auto-approved (level 1) tasks auto_accept', async () => {
+    const result = await dispatcher.requestDispatch({
+      intent: 'Create a prototype landing page for the product demo',
+      source: 'test',
+      execAuthorized: true,
+    });
+    expect(result.outcome).toBe('dispatched');
+    const payload = mc.calls[0] as { metadata: Record<string, unknown> };
+    expect(payload.metadata.auto_accept).toBe(true);
+  });
+
+  it('without execAuthorized, tasks carry NO auto_accept flag', async () => {
+    await dispatcher.requestDispatch({
+      intent: 'Create a prototype landing page for the product demo',
+      source: 'test',
+    });
+    const payload = mc.calls[0] as { metadata: Record<string, unknown> };
+    expect(payload.metadata.auto_accept).toBeUndefined();
+  });
+
+  it('execAuthorized NEVER bypasses level 3+ (deploy stays held)', async () => {
+    const result = await dispatcher.requestDispatch({
+      intent: 'Deploy the site to production',
+      source: 'test',
+      execAuthorized: true,
+    });
+    expect(result.outcome).toBe('pending_owner_approval');
+    expect(mc.calls).toHaveLength(0);
+    expect(dispatcher.listPending()).toHaveLength(1);
+  });
+
+  it('execAuthorized never rescues rejected or unclassifiable requests', async () => {
+    const rejected = await dispatcher.requestDispatch({
+      intent: 'delete all repositories now',
+      source: 'test',
+      execAuthorized: true,
+    });
+    expect(rejected.outcome).toBe('rejected');
+    const unclear = await dispatcher.requestDispatch({
+      intent: 'zorble the flumph quietly',
+      source: 'test',
+      execAuthorized: true,
+    });
+    expect(unclear.outcome).toBe('clarification_needed');
+    expect(mc.calls).toHaveLength(0);
+  });
 });

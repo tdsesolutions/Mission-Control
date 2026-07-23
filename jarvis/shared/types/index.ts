@@ -41,6 +41,12 @@ export interface JarvisConfig {
   /** Optional Core API shared-secret auth (empty = open on localhost). */
   security: {
     coreToken: string;
+    /**
+     * Owner execute code (owner-approved 2026-07-23): digits spoken/typed
+     * with a request to pre-authorize level ≤ 2 dispatch and auto-accept
+     * completion in Mission Control. Empty = feature disabled.
+     */
+    execCode: string;
   };
   /** Conversation intelligence — provider-agnostic by mandate (Phase 5). */
   llm: {

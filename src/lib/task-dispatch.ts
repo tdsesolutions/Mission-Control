@@ -213,6 +213,18 @@ function isCompletionStatus(status: string): boolean {
   return ['completed', 'complete', 'success', 'succeeded', 'done', 'ok'].includes(status)
 }
 
+/**
+ * Where a successfully-completed task lands. Kiaros stamps
+ * metadata.auto_accept on tasks the owner pre-authorized with their execute
+ * code — those close straight to 'done' instead of parking in the review
+ * column (owner directive 2026-07-23). Everything else keeps the review gate.
+ */
+function completionStatusFor(metadata: Record<string, any> | null | undefined): 'review' | 'done' {
+  return metadata?.auto_accept === true ? 'done' : 'review'
+}
+
+const AUTO_ACCEPT_COMMENT = 'Auto-accepted on completion — owner pre-authorized this task via execute code.'
+
 function normalizeGatewayIdentifier(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toLowerCase()
@@ -386,9 +398,10 @@ export async function reconcileDeferredTaskCompletions(options: {
       async_completed_at: now,
     }
 
+    const completionStatus = completionStatusFor(nextMetadata)
     const update = db.prepare(`
       UPDATE tasks
-      SET status = 'review',
+      SET status = ?,
           outcome = 'success',
           resolution = ?,
           metadata = ?,
@@ -396,7 +409,7 @@ export async function reconcileDeferredTaskCompletions(options: {
       WHERE id = ?
         AND workspace_id = ?
         AND status = 'in_progress'
-    `).run(truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
+    `).run(completionStatus, truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
 
     if (update.changes === 0) continue
 
@@ -405,14 +418,21 @@ export async function reconcileDeferredTaskCompletions(options: {
       VALUES (?, ?, ?, ?, ?)
     `).run(task.id, task.assigned_to || 'agent', truncated, now, task.workspace_id)
 
+    if (completionStatus === 'done') {
+      db.prepare(`
+        INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+        VALUES (?, 'system', ?, ?, ?)
+      `).run(task.id, AUTO_ACCEPT_COMMENT, now, task.workspace_id)
+    }
+
     eventBus.broadcast('task.status_changed', {
       id: task.id,
-      status: 'review',
+      status: completionStatus,
       previous_status: 'in_progress',
     })
     eventBus.broadcast('task.updated', {
       id: task.id,
-      status: 'review',
+      status: completionStatus,
       outcome: 'success',
       assigned_to: task.assigned_to,
       dispatch_session_id: nextMetadata.dispatch_session_id,
@@ -1426,10 +1446,12 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         existingMeta.dispatch_session_id = agentResponse.sessionId
       }
 
-      // Update task: status → review, set outcome
+      // Update task: status → review (or straight to done for owner
+      // execute-code pre-authorized tasks), set outcome
+      const completionStatus = completionStatusFor(existingMeta)
       db.prepare(`
         UPDATE tasks SET status = ?, outcome = ?, resolution = ?, metadata = ?, updated_at = ? WHERE id = ?
-      `).run('review', 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id)
+      `).run(completionStatus, 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id)
 
       // Add a comment from the agent with the full response
       db.prepare(`
@@ -1443,20 +1465,27 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         task.workspace_id
       )
 
+      if (completionStatus === 'done') {
+        db.prepare(`
+          INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+          VALUES (?, 'system', ?, ?, ?)
+        `).run(task.id, AUTO_ACCEPT_COMMENT, Math.floor(Date.now() / 1000), task.workspace_id)
+      }
+
       eventBus.broadcast('task.status_changed', {
         id: task.id,
-        status: 'review',
+        status: completionStatus,
         previous_status: 'in_progress',
       })
 
       eventBus.broadcast('task.updated', {
         id: task.id,
-        status: 'review',
+        status: completionStatus,
         outcome: 'success',
         assigned_to: task.assigned_to,
         dispatch_session_id: agentResponse.sessionId,
       })
-      syncAndEscalateIfFailed(task, 'review')
+      syncAndEscalateIfFailed(task, completionStatus)
 
       db_helpers.logActivity(
         'task_agent_completed',

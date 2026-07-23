@@ -43,6 +43,13 @@ export interface DispatchRequest {
   title?: string;
   /** Requester tag for the audit trail ('conversation', 'api'…). */
   source?: string;
+  /**
+   * The owner spoke/typed a matching execute code with this request
+   * (verified upstream; the code itself never reaches this layer). Grants
+   * pre-approval for level ≤ 2 decisions and marks the MC task
+   * auto_accept. Level 3+ ignores it entirely.
+   */
+  execAuthorized?: boolean;
 }
 
 /** B8 level → MC priority. Higher-scrutiny work lands higher in the queue. */
@@ -76,6 +83,15 @@ export class TaskDispatcher {
         return this.createInMissionControl(request, decision);
 
       case 'requires_owner_approval': {
+        // Owner execute code = the approval, given in the same breath as
+        // the request (owner-approved 2026-07-23). Only level ≤ 2 —
+        // dangerous operations (3+) are never code-bypassable.
+        if (request.execAuthorized && decision.level <= 2) {
+          getEventBus()?.emitEvent('approval_granted', 'info', 'task-dispatcher',
+            `Dispatch pre-authorized by owner execute code (level ${decision.level}): ${request.intent.slice(0, 120)}`,
+            { decisionId: decision.id, preAuthorized: true });
+          return this.createInMissionControl(request, decision);
+        }
         const pending = this.enqueuePending(request, decision, source);
         logger.info(`Dispatch held for owner approval: ${pending.id} (${decision.id})`);
         return { outcome: 'pending_owner_approval', pending, decision };
@@ -158,7 +174,9 @@ export class TaskDispatcher {
   // -------------------------------------------------------------------------
 
   private async createInMissionControl(request: DispatchRequest, decision: ApprovalDecision): Promise<DispatchOutcome> {
-    const result = await this.deps.missionControl.createTask(this.buildTaskPayload(request.intent, decision, request.title));
+    const result = await this.deps.missionControl.createTask(
+      this.buildTaskPayload(request.intent, decision, request.title, request.execAuthorized === true)
+    );
     if (!result.ok || !result.data) {
       const error = result.error ?? 'Mission Control did not respond';
       logger.warn(`Approved dispatch could not reach Mission Control: ${error}`);
@@ -176,6 +194,7 @@ export class TaskDispatcher {
     intent: string,
     decision: { id: string; state: string; level: number; reason: string },
     titleOverride?: string,
+    execAuthorized = false,
   ) {
     const cleaned = intent.replace(/\s+/g, ' ').trim();
     const title = (titleOverride?.trim() || cleaned).slice(0, TITLE_MAX_LENGTH);
@@ -183,13 +202,17 @@ export class TaskDispatcher {
       title,
       description:
         `${cleaned}\n\n---\nCreated by Kiaros (owner request).\n` +
-        `Approval Engine decision ${decision.id}: ${decision.state} (level ${decision.level}) — ${decision.reason}`,
+        `Approval Engine decision ${decision.id}: ${decision.state} (level ${decision.level}) — ${decision.reason}` +
+        (execAuthorized ? '\nOwner pre-authorized via execute code: auto-accept on completion.' : ''),
       priority: LEVEL_PRIORITY[decision.level] ?? 'medium',
       assignedTo: config.missionControl.assignee || undefined,
       tags: ['kiaros'],
       metadata: {
         source: 'kiaros',
         approval: { id: decision.id, state: decision.state, level: decision.level },
+        // MC honors this on completion: straight to done, skipping the
+        // review column (owner execute-code pre-authorization).
+        ...(execAuthorized ? { auto_accept: true } : {}),
       },
     };
   }

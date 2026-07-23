@@ -18,6 +18,7 @@ import { ContextManager, ConversationContext } from './ContextManager.js';
 import { getLLMProvider, type ChatMessage } from '../llm/index.js';
 import { getMissionControlClient } from '../missionControlClient.js';
 import { getTaskDispatcher, type DispatchOutcome } from '../dispatch/TaskDispatcher.js';
+import { extractExecCode } from '../dispatch/execCode.js';
 import type { ApprovalDecision } from '../approval/types.js';
 
 export interface ConversationRequest {
@@ -128,7 +129,15 @@ export class ConversationManager {
    * Process a user message through the conversation pipeline.
    */
   async processMessage(request: ConversationRequest): Promise<ConversationResult> {
-    const { content } = request;
+    // Step 0: Owner execute code (owner-approved 2026-07-23). Extract and
+    // STRIP the code phrase before anything else touches the content — the
+    // digits must never reach history, the LLM, task descriptions, or audit
+    // trails. A matching code pre-authorizes level ≤ 2 dispatches.
+    const exec = extractExecCode(request.content, config.security.execCode);
+    const content = exec.cleaned;
+    if (exec.codePresent) {
+      request = { ...request, content };
+    }
 
     // Step 1: Detect Intent
     const detectedIntent = this.intentDetector.detect(content);
@@ -152,7 +161,11 @@ export class ConversationManager {
     let approval: ApprovalDecision | undefined;
     let dispatch: DispatchOutcome | undefined;
     if (isActionRequest(content, detectedIntent)) {
-      dispatch = await getTaskDispatcher().requestDispatch({ intent: content, source: 'conversation' });
+      dispatch = await getTaskDispatcher().requestDispatch({
+        intent: content,
+        source: 'conversation',
+        execAuthorized: exec.authorized,
+      });
       approval = dispatch.decision;
     }
 
