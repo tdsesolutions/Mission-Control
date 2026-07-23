@@ -26,7 +26,8 @@ describe('Mission Control → Kiaros shape mapping (read-through proxy)', () => 
     expect(mapMcTask({ id: 1, status: 'inbox' }).status).toBe('pending');
     expect(mapMcTask({ id: 1, status: 'queued' }).status).toBe('pending');
     expect(mapMcTask({ id: 1, status: 'dispatched' }).status).toBe('in_progress');
-    expect(mapMcTask({ id: 1, status: 'review' }).status).toBe('in_progress');
+    expect(mapMcTask({ id: 1, status: 'review' }).status).toBe('needs_review');
+    expect(mapMcTask({ id: 1, status: 'quality_review' }).status).toBe('needs_review');
     expect(mapMcTask({ id: 1, status: 'done' }).status).toBe('completed');
     expect(mapMcTask({ id: 1, status: 'failed' }).status).toBe('cancelled');
     expect(mapMcTask({ id: 1, status: 'weird-future-status' }).status).toBe('pending');

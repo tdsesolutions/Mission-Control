@@ -84,6 +84,10 @@ export const updateTaskSchema = z.object({
   title: taskFields.title.optional(),
   description: taskFields.description.optional(),
   status: taskFields.status.optional(),
+  // Owner override of the Aegis quality gate for review→done (2026-07-23).
+  // Only honored by the task PUT route, which audits it as a system comment;
+  // callers are expected to have verified the owner's execute code first.
+  owner_override: z.boolean().optional(),
   priority: taskFields.priority.optional(),
   project_id: taskFields.project_id.optional(),
   assigned_to: taskFields.assigned_to.optional(),

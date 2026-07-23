@@ -187,12 +187,20 @@ export async function PUT(
       fieldsToUpdate.push('description = ?');
       updateParams.push(description);
     }
+    // Owner override of the Aegis quality gate (owner directive 2026-07-23):
+    // Kiaros sends owner_override:true only after verifying the owner's
+    // execute code. The override is audited via a system comment below.
+    const ownerOverride = body.owner_override === true;
+    let ownerOverrideApplied = false;
     if (normalizedStatus !== undefined) {
       if (normalizedStatus === 'done' && !hasAegisApproval(db, taskId, workspaceId)) {
-        return NextResponse.json(
-          { error: 'Aegis approval is required to move task to done.' },
-          { status: 403 }
-        )
+        if (!ownerOverride) {
+          return NextResponse.json(
+            { error: 'Aegis approval is required to move task to done.' },
+            { status: 403 }
+          )
+        }
+        ownerOverrideApplied = true;
       }
       fieldsToUpdate.push('status = ?');
       updateParams.push(normalizedStatus);
@@ -305,7 +313,19 @@ export async function PUT(
     `);
     
     stmt.run(...updateParams);
-    
+
+    if (ownerOverrideApplied) {
+      db.prepare(`
+        INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+        VALUES (?, 'system', ?, ?, ?)
+      `).run(
+        taskId,
+        'Accepted to done by owner approval (execute code verified via Kiaros) — Aegis quality gate overridden.',
+        now,
+        workspaceId
+      );
+    }
+
     // Track changes and log activities
     const changes: string[] = [];
     

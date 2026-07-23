@@ -167,7 +167,7 @@ export interface Task {
   metadata: TaskMetadata;
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+export type TaskStatus = 'pending' | 'in_progress' | 'needs_review' | 'blocked' | 'completed' | 'cancelled';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface TaskMetadata {

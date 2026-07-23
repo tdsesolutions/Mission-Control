@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { coreHeaders } from '../services/coreAuth';
 import { useJarvisStore } from '../stores/jarvisStore';
-import { CheckCircle2, Clock, AlertCircle, ListTodo, Ban, XCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, ListTodo, Ban, XCircle, RefreshCw, ClipboardCheck } from 'lucide-react';
 
 interface Task {
   id: string;
   title: string;
-  status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'needs_review' | 'blocked' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'critical';
 }
 
@@ -15,6 +15,12 @@ export function TaskPanel() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [degraded, setDegraded] = useState(false);
+  // Inline approval flow for needs_review tasks: which task has the code
+  // prompt open, the typed execute code, and the last error (if any).
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [execCode, setExecCode] = useState('');
+  const [approveBusy, setApproveBusy] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
   // Bumped by Core push events (task_created/completed/failed) — refetch
   // immediately when Kiaros dispatches work instead of waiting for the poll.
   const taskEventsNonce = useJarvisStore((state) => state.taskEventsNonce);
@@ -52,12 +58,49 @@ export function TaskPanel() {
     }
   };
 
+  const openApprove = (taskId: string) => {
+    setApprovingId(taskId);
+    setExecCode('');
+    setApproveError(null);
+  };
+
+  const submitApprove = async (taskId: string) => {
+    if (!execCode.trim() || approveBusy) return;
+    setApproveBusy(true);
+    setApproveError(null);
+    try {
+      const response = await fetch(`http://localhost:3010/api/v1/tasks/${encodeURIComponent(taskId)}/approve`, {
+        method: 'POST',
+        headers: coreHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ execCode: execCode.trim() }),
+      });
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.success) {
+        setApprovingId(null);
+        setExecCode('');
+        fetchTasks();
+      } else {
+        setApproveError(
+          data?.error?.code === 'EXEC_CODE_REQUIRED'
+            ? 'Execute code not accepted.'
+            : data?.error?.message ?? 'Approval failed — Mission Control did not respond.'
+        );
+      }
+    } catch {
+      setApproveError('Approval failed — Kiaros Core unreachable.');
+    } finally {
+      setApproveBusy(false);
+    }
+  };
+
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
       case 'completed':
         return <CheckCircle2 size={14} className="text-[var(--j-success)]" />;
       case 'in_progress':
         return <Clock size={14} className="text-[var(--j-warning)]" />;
+      case 'needs_review':
+        return <ClipboardCheck size={14} className="text-[var(--j-primary)]" />;
       case 'blocked':
         return <Ban size={14} className="text-[var(--j-error)]" />;
       case 'cancelled':
@@ -91,7 +134,7 @@ export function TaskPanel() {
         <span>Active Tasks</span>
         <span className="hud-panel-tagline">What Kiaros is doing for you.</span>
       </div>
-      
+
       <div className="hud-panel-content">
         {loading ? (
           <div className="flex items-center justify-center h-32 text-[var(--j-text-muted)]">
@@ -131,6 +174,58 @@ export function TaskPanel() {
                     {task.priority}
                   </span>
                 </div>
+
+                {task.status === 'needs_review' && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-[rgba(0,240,255,0.15)] text-[var(--j-primary)]">
+                      Needs your review
+                    </span>
+                    {approvingId === task.id ? (
+                      <form
+                        className="flex items-center gap-1.5"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          submitApprove(task.id);
+                        }}
+                      >
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          autoFocus
+                          value={execCode}
+                          onChange={(event) => setExecCode(event.target.value)}
+                          placeholder="Execute code"
+                          className="w-24 px-2 py-0.5 text-xs rounded bg-[rgba(255,255,255,0.06)] border border-[var(--j-bg-panel-border)] text-[var(--j-text-primary)] placeholder:text-[var(--j-text-muted)] focus:outline-none focus:border-[var(--j-primary)]"
+                        />
+                        <button
+                          type="submit"
+                          disabled={approveBusy || !execCode.trim()}
+                          className="text-[10px] uppercase px-2 py-0.5 rounded bg-[rgba(0,240,255,0.2)] text-[var(--j-primary)] disabled:opacity-40 hover:bg-[rgba(0,240,255,0.3)] transition-colors"
+                        >
+                          {approveBusy ? '...' : 'Confirm'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setApprovingId(null)}
+                          className="text-[10px] uppercase px-1.5 py-0.5 text-[var(--j-text-muted)] hover:text-[var(--j-text-primary)] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        onClick={() => openApprove(task.id)}
+                        className="text-[10px] uppercase px-2 py-0.5 rounded border border-[var(--j-primary)] text-[var(--j-primary)] hover:bg-[rgba(0,240,255,0.15)] transition-colors"
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {approvingId === task.id && approveError && (
+                      <span className="text-[10px] text-[var(--j-error)] basis-full">{approveError}</span>
+                    )}
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>

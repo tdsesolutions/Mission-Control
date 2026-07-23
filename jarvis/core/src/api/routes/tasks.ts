@@ -118,6 +118,43 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Owner approval of a review-column task (owner-approved 2026-07-23) — the
+// one sanctioned lifecycle edit besides creation. Requires the owner's
+// execute code in the body; the response is identical for a missing and a
+// wrong code (no oracle). Only review-state tasks can be accepted —
+// MissionControlClient.acceptReviewTask enforces that again.
+router.post('/:id/approve', async (req, res) => {
+  const provided = String((req.body ?? {}).execCode ?? '').trim();
+  const configured = (config.security.execCode ?? '').trim();
+  if (!configured || !provided || provided !== configured) {
+    res.status(403).json({
+      success: false,
+      error: { code: 'EXEC_CODE_REQUIRED', message: 'Owner execute code required to approve tasks.' },
+      ...envelope(req),
+    });
+    return;
+  }
+
+  const result = await getMissionControlClient().acceptReviewTask(
+    req.params.id,
+    'Approved by owner via Kiaros desktop (execute code verified) — accepted from review.'
+  );
+  if (!result.ok || !result.data) {
+    const status = result.status === 404 ? 404 : result.status === 409 ? 409 : 502;
+    res.status(status).json({
+      success: false,
+      error: {
+        code: status === 404 ? 'TASK_NOT_FOUND' : status === 409 ? 'NOT_AWAITING_REVIEW' : 'MISSION_CONTROL_UNAVAILABLE',
+        message: result.error ?? 'Mission Control did not respond.',
+      },
+      ...envelope(req),
+    });
+    return;
+  }
+
+  res.json({ success: true, data: result.data, source: 'mission-control', ...envelope(req) });
+});
+
 // Update/delete: deliberately gated by design (not a stub). Task lifecycle
 // edits belong to Mission Control's own UI — Kiaros creates work, it does
 // not rewrite the system of record.

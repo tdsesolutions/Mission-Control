@@ -19,6 +19,7 @@ import { getLLMProvider, type ChatMessage } from '../llm/index.js';
 import { getMissionControlClient } from '../missionControlClient.js';
 import { getTaskDispatcher, type DispatchOutcome } from '../dispatch/TaskDispatcher.js';
 import { extractExecCode } from '../dispatch/execCode.js';
+import { parseApproveCommand, runApproveCommand, type ApproveCommandResult } from '../dispatch/approveCommand.js';
 import type { ApprovalDecision } from '../approval/types.js';
 
 export interface ConversationRequest {
@@ -38,11 +39,13 @@ export interface ConversationResult {
   conversationMode: ConversationMode;
   context: ConversationContext;
   /**
-   * How the reply was produced: 'llm' (real intelligence) or 'degraded'
+   * How the reply was produced: 'llm' (real intelligence), 'degraded'
    * (honest status reply when no model is reachable — Kiaros never
-   * pretends to understand; placeholder behavior was retired in Phase 7).
+   * pretends to understand; placeholder behavior was retired in Phase 7),
+   * or 'command' (deterministic owner command, e.g. spoken approval —
+   * the LLM is never trusted to decide that an approval happened).
    */
-  responseSource: 'llm' | 'degraded';
+  responseSource: 'llm' | 'degraded' | 'command';
   /** Provider name and model when responseSource is 'llm'. */
   provider?: string;
   model?: string;
@@ -58,6 +61,11 @@ export interface ConversationResult {
    * | rejected | dispatch_failed. Absent for non-command messages.
    */
   dispatch?: DispatchOutcome;
+  /**
+   * Result of a deterministic owner approve command (2026-07-23). Present
+   * only when responseSource is 'command'.
+   */
+  approveCommand?: ApproveCommandResult;
 }
 
 const MAX_HISTORY_MESSAGES = 20;
@@ -152,6 +160,44 @@ export class ConversationManager {
     this.contextManager.setLastMode(conversationMode);
     this.extractContextFromContent(content);
     const context = this.contextManager.getContext();
+
+    // Step 3a: Owner approve command (owner-approved 2026-07-23). Handled
+    // deterministically BEFORE the LLM: approval is a security action, and
+    // the model must never be the judge of whether one happened. Requires a
+    // verified execute code in the same utterance; without it nothing
+    // mutates and the reply asks for the code.
+    const approveParse = parseApproveCommand(content);
+    if (approveParse.isApprove) {
+      const mc = getMissionControlClient();
+      const dispatcher = getTaskDispatcher();
+      const approveResult = await runApproveCommand(
+        {
+          acceptReviewTask: (id, note) => mc.acceptReviewTask(id, note),
+          listReviewTasks: async () => {
+            const result = await mc.listTasks({ status: 'review', limit: 20 });
+            return result.ok && result.data ? result.data.tasks : [];
+          },
+          listPendingDispatches: () => dispatcher.listPending(false),
+          approvePendingDispatch: async (id) => {
+            const released = await dispatcher.approvePending(id);
+            return released.ok
+              ? { ok: true, taskId: released.task.id }
+              : { ok: false, error: released.error };
+          },
+        },
+        approveParse,
+        exec.authorized
+      );
+      logger.info(`approve-command: ${approveResult.outcome}${approveResult.taskId ? ` (task ${approveResult.taskId})` : ''}`);
+      return {
+        response: approveResult.message,
+        detectedIntent,
+        conversationMode,
+        context: { ...context },
+        responseSource: 'command',
+        approveCommand: approveResult,
+      };
+    }
 
     // Step 3b: Command-intent requests go through the sanctioned dispatch
     // path (owner-approved 2026-07-09): Approval Engine decision first,

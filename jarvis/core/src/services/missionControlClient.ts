@@ -42,7 +42,11 @@ const STATUS_MAP: Record<string, TaskStatus> = {
   pending_approval: 'pending',
   in_progress: 'in_progress',
   dispatched: 'in_progress',
-  review: 'in_progress',
+  // A finished task awaiting the owner's acceptance must not masquerade as
+  // still-running work — that hid completed Claw results from the Task tab
+  // (owner-reported 2026-07-23).
+  review: 'needs_review',
+  quality_review: 'needs_review',
   blocked: 'blocked',
   done: 'completed',
   completed: 'completed',
@@ -235,6 +239,14 @@ export class MissionControlClient {
 
   /** Timeboxed authenticated POST. Never throws; failures are data (Art. IV honesty). */
   private async rawPost<T>(endpoint: string, body: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<McReadResult<T>> {
+    return this.rawWrite<T>('POST', endpoint, body, timeoutMs);
+  }
+
+  private async rawPut<T>(endpoint: string, body: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<McReadResult<T>> {
+    return this.rawWrite<T>('PUT', endpoint, body, timeoutMs);
+  }
+
+  private async rawWrite<T>(method: 'POST' | 'PUT', endpoint: string, body: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<McReadResult<T>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -246,7 +258,7 @@ export class MissionControlClient {
       if (this.config.apiKey) headers['x-api-key'] = this.config.apiKey;
 
       const response = await fetch(`${this.config.url}${endpoint}`, {
-        method: 'POST',
+        method,
         headers,
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -353,6 +365,43 @@ export class MissionControlClient {
       return { ok: false, status: result.status, error: 'Mission Control accepted the request but returned no task' };
     }
     return { ok: true, status: result.status, data: mapMcTask(row) };
+  }
+
+  /**
+   * Accept a task sitting in Mission Control's review column → done.
+   * RESTRICTED CALLER: owner-approval paths only (the conversational
+   * approve command and POST /tasks/:id/approve), both of which verify the
+   * owner's execute code first. Refuses any task that is not actually
+   * awaiting review — this method accepts finished work, it never
+   * force-completes running or queued tasks.
+   */
+  async acceptReviewTask(id: string, note: string): Promise<McReadResult<Task>> {
+    const current = await this.getTask(id);
+    if (!current.ok || !current.data) return { ok: false, error: current.error, status: current.status };
+
+    const classification = current.data.metadata.classification ?? '';
+    if (!/^mc:(review|quality_review)\//.test(classification)) {
+      return {
+        ok: false,
+        status: 409,
+        error: `Task ${id} is not awaiting review (${classification || 'unknown state'})`,
+      };
+    }
+
+    // owner_override: this method is only reachable after the owner's
+    // execute code was verified, which supersedes MC's Aegis quality gate
+    // (owner directive 2026-07-23). MC records the override as a system
+    // comment on the task.
+    const updated = await this.rawPut<{ task?: McTaskRow } | McTaskRow>(`/api/tasks/${encodeURIComponent(id)}`, { status: 'done', owner_override: true });
+    if (!updated.ok) return { ok: false, error: updated.error, status: updated.status };
+
+    // Audit trail on the task itself. Comment failure never rolls back the
+    // acceptance — report success with the state that actually holds.
+    await this.rawPost(`/api/tasks/${encodeURIComponent(id)}/comments`, { content: note });
+
+    const after = await this.getTask(id);
+    if (after.ok && after.data) return after;
+    return { ok: true, status: 200, data: current.data };
   }
 
   async listAgents(): Promise<McReadResult<unknown[]>> {
